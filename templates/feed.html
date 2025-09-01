@@ -76,24 +76,6 @@
                         </span>
                     </div>
                 </div>
-                
-                <!-- Enhanced Camera Controls -->
-                <div class="p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <small class="text-muted">
-                            <strong>ID:</strong> {{ camera.id }} | 
-                            <strong>FPS:</strong> <span class="camera-fps" data-camera-id="{{ camera.id }}">--</span>
-                        </small>
-                    </div>
-                    
-                    <!-- Camera Stats -->
-                    <div class="camera-stats" data-camera-id="{{ camera.id }}">
-                        <small class="text-muted d-block">
-                            <strong>Frames:</strong> <span class="frames-captured">--</span> | 
-                            <strong>Status:</strong> <span class="connection-status">{{ camera.status }}</span>
-                        </small>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -216,15 +198,6 @@
 </div>
 
 
-
-.camera-stats {
-    font-size: 0.8rem;
-}
-
-.btn-group-sm .btn {
-    padding: 0.25rem 0.4rem;
-    font-size: 0.75rem;
-}
 </style>
 
 <script>
