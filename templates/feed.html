@@ -24,10 +24,12 @@
                         {% else %}text-warning">🟡 CONNECTING
                         {% endif %}</span>
                     
-                    <!-- Recording Status Badge -->
-                    {% if camera.get('recording_status') == 'recording' %}
-                    <span class="badge bg-danger">🔴 REC</span>
-                    {% endif %}
+                    <!-- Delete Button -->
+                    <button class="btn btn-outline-danger btn-sm delete-btn" 
+                            data-camera-id="{{ camera.id }}"
+                            title="Delete Camera">
+                        🗑️
+                    </button>
                 </div>
             </div>
             <div class="card-body p-0">
@@ -44,16 +46,6 @@
                                 <div class="mt-2">❌ FAILED</div>
                             </div>
                         </div>
-                        
-                        <!-- Recording Indicator Overlay -->
-                        {% if camera.get('recording_status') == 'recording' %}
-                        <div class="position-absolute top-0 start-0 m-2">
-                            <span class="badge bg-danger d-flex align-items-center">
-                                <span class="recording-dot me-1"></span>
-                                REC
-                            </span>
-                        </div>
-                        {% endif %}
                         
                     {% elif camera.status == 'offline' %}
                         <div class="d-flex align-items-center justify-content-center h-100 text-white">
@@ -76,6 +68,13 @@
                             </div>
                         </div>
                     {% endif %}
+                    
+                    <!-- FPS Overlay - Bottom Right -->
+                    <div class="position-absolute bottom-0 end-0 m-2">
+                        <span class="badge bg-dark bg-opacity-75 text-white">
+                            📊 <span class="camera-fps" data-camera-id="{{ camera.id }}">--</span> FPS
+                        </span>
+                    </div>
                 </div>
                 
                 <!-- Enhanced Camera Controls -->
@@ -85,34 +84,6 @@
                             <strong>ID:</strong> {{ camera.id }} | 
                             <strong>FPS:</strong> <span class="camera-fps" data-camera-id="{{ camera.id }}">--</span>
                         </small>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <!-- Recording Toggle Button -->
-                            {% if camera.status == 'online' or camera.get('recording_status') == 'recording' %}
-                            <button class="btn {% if camera.get('recording_status') == 'recording' %}btn-danger{% else %}btn-outline-danger{% endif %} record-toggle-btn" 
-                                    data-camera-id="{{ camera.id }}"
-                                    title="{% if camera.get('recording_status') == 'recording' %}Stop Recording{% else %}Start Recording{% endif %}">
-                                {% if camera.get('recording_status') == 'recording' %}
-                                    ⏹️
-                                {% else %}
-                                    ⏺️
-                                {% endif %}
-                            </button>
-                            {% endif %}
-                            
-                            <!-- Camera Status Button -->
-                            <button class="btn btn-outline-info btn-sm status-btn" 
-                                    data-camera-id="{{ camera.id }}"
-                                    title="View Detailed Status">
-                                ℹ️
-                            </button>
-                            
-                            <!-- Delete Button -->
-                            <button class="btn btn-outline-danger btn-sm delete-btn" 
-                                    data-camera-id="{{ camera.id }}"
-                                    title="Delete Camera">
-                                🗑️
-                            </button>
-                        </div>
                     </div>
                     
                     <!-- Camera Stats -->
@@ -153,7 +124,6 @@
             <span class="badge bg-success me-1">{{ stats.online }} Online</span>
             <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
             <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
-            <span class="badge bg-info me-1">{{ stats.get('recording', 0) }} Recording</span>
         </div>
         <div class="text-muted">
             🕐 <strong>Last Update:</strong> <span id="lastUpdate">just now</span> | 
@@ -245,38 +215,7 @@
     </div>
 </div>
 
-<!-- Detailed Status Modal -->
-<div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h1 class="modal-title fs-5" id="statusModalLabel">📊 Camera Status Details</h1>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="statusContent">Loading...</div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Recording Dot CSS Animation -->
-<style>
-.recording-dot {
-    width: 8px;
-    height: 8px;
-    background-color: #ff0000;
-    border-radius: 50%;
-    animation: recording-blink 1s infinite;
-}
-
-@keyframes recording-blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0.3; }
-}
 
 .camera-stats {
     font-size: 0.8rem;
@@ -433,55 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Recording toggle functionality
-    document.addEventListener('click', async function(e) {
-        if (e.target.classList.contains('record-toggle-btn')) {
-            const cameraId = e.target.getAttribute('data-camera-id');
-            const isRecording = e.target.classList.contains('btn-danger');
-            
-            try {
-                const endpoint = `/api/cameras/${cameraId}/recording/toggle`;
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
 
-                const result = await response.json();
-                
-                if (result.success) {
-                    showNotification(result.message, 'success');
-                    // Update button state
-                    updateRecordingButton(e.target, result.recording_status === 'recording');
-                } else {
-                    showNotification(`Error: ${result.error}`, 'danger');
-                }
-            } catch (error) {
-                showNotification(`Network error: ${error.message}`, 'danger');
-            }
-        }
-    });
-
-    // Status button functionality
-    document.addEventListener('click', async function(e) {
-        if (e.target.classList.contains('status-btn')) {
-            const cameraId = e.target.getAttribute('data-camera-id');
-            
-            try {
-                const response = await fetch(`/api/cameras/${cameraId}/status`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    showStatusModal(result);
-                } else {
-                    showNotification(`Error: ${result.error}`, 'danger');
-                }
-            } catch (error) {
-                showNotification(`Network error: ${error.message}`, 'danger');
-            }
-        }
-    });
 
     // Delete button functionality
     document.addEventListener('click', async function(e) {
@@ -512,65 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    function updateRecordingButton(button, isRecording) {
-        if (isRecording) {
-            button.className = 'btn btn-danger record-toggle-btn';
-            button.innerHTML = '⏹️';
-            button.title = 'Stop Recording';
-        } else {
-            button.className = 'btn btn-outline-danger record-toggle-btn';
-            button.innerHTML = '⏺️';
-            button.title = 'Start Recording';
-        }
-    }
 
-    function showStatusModal(statusData) {
-        const modal = new bootstrap.Modal(document.getElementById('statusModal'));
-        const content = document.getElementById('statusContent');
-        
-        const status = statusData.status;
-        const recording = status.recording;
-        
-        content.innerHTML = `
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Connection Status</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>Status:</strong> ${status.status}</li>
-                        <li><strong>FPS:</strong> ${status.fps}</li>
-                        <li><strong>Frames Captured:</strong> ${status.frames_captured}</li>
-                        <li><strong>Frames Dropped:</strong> ${status.frames_dropped}</li>
-                        <li><strong>Uptime:</strong> ${status.uptime_seconds}s</li>
-                        <li><strong>Connection Attempts:</strong> ${status.connection_attempts}</li>
-                    </ul>
-                </div>
-                <div class="col-md-6">
-                    <h6>Recording Status</h6>
-                    <ul class="list-unstyled">
-                        <li><strong>Recording:</strong> ${recording.is_recording ? 'Yes' : 'No'}</li>
-                        <li><strong>Duration:</strong> ${recording.recording_duration}s</li>
-                        <li><strong>Output Dir:</strong> ${recording.output_directory}</li>
-                        <li><strong>Start Time:</strong> ${recording.recording_start_time || 'N/A'}</li>
-                    </ul>
-                </div>
-            </div>
-            
-            ${status.last_error ? `
-                <div class="alert alert-warning mt-3">
-                    <strong>Last Error:</strong> ${status.last_error}
-                </div>
-            ` : ''}
-            
-            ${recording.last_error ? `
-                <div class="alert alert-danger mt-3">
-                    <strong>Recording Error:</strong> ${recording.last_error}
-                </div>
-            ` : ''}
-        `;
-        
-        document.getElementById('statusModalLabel').textContent = `📊 ${statusData.camera_name} - Status Details`;
-        modal.show();
-    }
 
     function startRealTimeUpdates() {
         updateRealTimeStats();
@@ -591,7 +424,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="badge bg-success me-1">${systemStatus.online_cameras} Online</span>
                     <span class="badge bg-danger me-1">${systemStatus.offline_cameras} Offline</span>
                     <span class="badge bg-warning me-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
-                    <span class="badge bg-info me-1">${systemStatus.recording_cameras} Recording</span>
                 `;
                 
                 // Update total frames
@@ -613,24 +445,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (framesElement) framesElement.textContent = status.frames_captured.toLocaleString();
                         if (connectionElement) connectionElement.textContent = status.status;
                         
-                        // Update recording indicators
-                        const recordBtn = document.querySelector(`[data-camera-id="${cameraId}"] .record-toggle-btn`);
-                        if (recordBtn) {
-                            updateRecordingButton(recordBtn, status.recording.is_recording);
-                        }
-                        
-                        // Update recording badge in header
-                        const header = document.querySelector(`[data-camera-id="${cameraId}"] .card-header`);
-                        const existingRecBadge = header.querySelector('.badge.bg-danger');
-                        
-                        if (status.recording.is_recording && !existingRecBadge) {
-                            const recBadge = document.createElement('span');
-                            recBadge.className = 'badge bg-danger';
-                            recBadge.innerHTML = '🔴 REC';
-                            header.querySelector('.d-flex').appendChild(recBadge);
-                        } else if (!status.recording.is_recording && existingRecBadge) {
-                            existingRecBadge.remove();
-                        }
                     }
                 }
                 

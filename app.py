@@ -28,7 +28,6 @@ cameras = [
         'password': '',
         'status': 'online',
         'auto_start': True,
-        'record_footage': False,
         'created_at': time.time()
     },
     {
@@ -39,7 +38,6 @@ cameras = [
         'password': '',
         'status': 'online',
         'auto_start': True,
-        'record_footage': False,
         'created_at': time.time()
     },
     {
@@ -50,7 +48,6 @@ cameras = [
         'password': '',
         'status': 'offline',
         'auto_start': True,
-        'record_footage': False,
         'created_at': time.time()
     },
     {
@@ -61,7 +58,6 @@ cameras = [
         'password': '',
         'status': 'online',
         'auto_start': True,
-        'record_footage': False,
         'created_at': time.time()
     },
     {
@@ -72,7 +68,6 @@ cameras = [
         'password': '',
         'status': 'connecting',
         'auto_start': True,
-        'record_footage': False,
         'created_at': time.time()
     }
 ]
@@ -81,7 +76,6 @@ def initialize_cameras():
     """Initialize all cameras in the enhanced camera manager"""
     for camera in cameras:
         # Add default fields for compatibility
-        camera.setdefault('recording_status', 'stopped')
         camera.setdefault('username', '')
         camera.setdefault('password', '')
         
@@ -107,14 +101,12 @@ def feed():
         camera_status = camera_manager.get_camera_status(camera['id'])
         if camera_status:
             camera['status'] = camera_status['status']
-            camera['recording_status'] = 'recording' if camera_status['recording']['is_recording'] else 'stopped'
     
     # Count cameras by status
     stats = {
         'online': len([c for c in cameras if c['status'] == 'online']),
         'offline': len([c for c in cameras if c['status'] == 'offline']),
-        'connecting': len([c for c in cameras if c['status'] == 'connecting']),
-        'recording': len([c for c in cameras if c.get('recording_status') == 'recording'])
+        'connecting': len([c for c in cameras if c['status'] == 'connecting'])
     }
     return render_template('feed.html', cameras=cameras, stats=stats)
 
@@ -127,7 +119,6 @@ def get_cameras():
         camera_status = camera_manager.get_camera_status(camera['id'])
         if camera_status:
             camera['status'] = camera_status['status']
-            camera['recording_status'] = 'recording' if camera_status['recording']['is_recording'] else 'stopped'
             camera['fps'] = camera_status.get('fps', 0)
             camera['frames_captured'] = camera_status.get('frames_captured', 0)
     
@@ -159,19 +150,13 @@ def add_camera():
             'password': data.get('password', ''),
             'status': 'connecting' if data.get('auto_start', True) else 'offline',
             'auto_start': data.get('auto_start', True),
-            'record_footage': data.get('record_footage', False),
-            'recording_status': 'stopped',
             'created_at': time.time()
         }
         
         cameras.append(new_camera)
         
         # Add camera to enhanced camera manager
-        if camera_manager.add_camera(new_camera):
-            # Start auto-recording if enabled
-            if new_camera['record_footage'] and RECORDING_AUTO_START:
-                camera_manager.start_recording(new_camera['id'])
-                new_camera['recording_status'] = 'recording'
+        camera_manager.add_camera(new_camera)
         
         return jsonify({
             'success': True,
@@ -380,160 +365,8 @@ def stream_camera(camera_id):
 
 # New Enhanced API Endpoints
 
-@app.route('/api/cameras/<int:camera_id>/recording/start', methods=['POST'])
-def start_camera_recording(camera_id):
-    """Start recording for a specific camera"""
-    try:
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        if camera_manager.start_recording(camera_id):
-            # Update camera status
-            camera['recording_status'] = 'recording'
-            camera['record_footage'] = True
-            
-            return jsonify({
-                'success': True,
-                'message': f'Recording started for camera {camera["name"]}',
-                'camera_id': camera_id
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to start recording. Camera may already be recording.'
-            }), 400
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@app.route('/api/cameras/<int:camera_id>/recording/stop', methods=['POST'])
-def stop_camera_recording(camera_id):
-    """Stop recording for a specific camera"""
-    try:
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        if camera_manager.stop_recording(camera_id):
-            # Update camera status
-            camera['recording_status'] = 'stopped'
-            camera['record_footage'] = False
-            
-            return jsonify({
-                'success': True,
-                'message': f'Recording stopped for camera {camera["name"]}',
-                'camera_id': camera_id
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to stop recording. Camera may not be recording.'
-            }), 400
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@app.route('/api/cameras/<int:camera_id>/recording/toggle', methods=['POST'])
-def toggle_camera_recording(camera_id):
-    """Toggle recording for a specific camera"""
-    try:
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        # Get current recording status
-        camera_status = camera_manager.get_camera_status(camera_id)
-        if not camera_status:
-            return jsonify({
-                'success': False,
-                'error': 'Camera status unavailable'
-            }), 500
-        
-        is_recording = camera_status['recording']['is_recording']
-        
-        if is_recording:
-            # Stop recording
-            if camera_manager.stop_recording(camera_id):
-                camera['recording_status'] = 'stopped'
-                camera['record_footage'] = False
-                return jsonify({
-                    'success': True,
-                    'message': f'Recording stopped for camera {camera["name"]}',
-                    'recording_status': 'stopped'
-                })
-        else:
-            # Start recording
-            if camera_manager.start_recording(camera_id):
-                camera['recording_status'] = 'recording'
-                camera['record_footage'] = True
-                return jsonify({
-                    'success': True,
-                    'message': f'Recording started for camera {camera["name"]}',
-                    'recording_status': 'recording'
-                })
-        
-        return jsonify({
-            'success': False,
-            'error': 'Failed to toggle recording'
-        }), 500
-            
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/cameras/<int:camera_id>/status', methods=['GET'])
-def get_detailed_camera_status(camera_id):
-    """Get detailed status for a specific camera"""
-    try:
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        # Get detailed status from camera manager
-        detailed_status = camera_manager.get_camera_status(camera_id)
-        if not detailed_status:
-            return jsonify({
-                'success': False,
-                'error': 'Camera status unavailable'
-            }), 500
-        
-        return jsonify({
-            'success': True,
-            'camera_id': camera_id,
-            'camera_name': camera['name'],
-            'status': detailed_status
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 @app.route('/api/cameras/<int:camera_id>/recordings', methods=['GET'])
 def list_camera_recordings(camera_id):
