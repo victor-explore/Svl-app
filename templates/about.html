@@ -1,0 +1,224 @@
+{% extends "base.html" %}
+
+{% block title %}About - Flask App{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="row mb-5">
+    <div class="col-12 text-center">
+        <h1 class="display-4 fw-bold text-primary mb-3">ℹ️ About This Application</h1>
+        <p class="lead text-muted">A modern Flask web application showcasing Bootstrap 5.3 integration</p>
+        <hr class="w-25 mx-auto">
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <!-- Application Overview -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">🚀 Application Overview</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">This Flask application demonstrates modern web development practices using Bootstrap 5.3 framework for responsive design and component-based UI.</p>
+                
+                <h5 class="mt-4 mb-3">🎯 Key Features</h5>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0">
+                                <div class="bg-success rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">🎨</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Bootstrap 5.3.3 Integration</h6>
+                                <p class="mb-0 text-muted small">Latest Bootstrap framework with modern components</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0">
+                                <div class="bg-info rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">📱</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Responsive Navigation</h6>
+                                <p class="mb-0 text-muted small">Offcanvas navigation for mobile devices</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0">
+                                <div class="bg-warning rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">🔧</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Clean Architecture</h6>
+                                <p class="mb-0 text-muted small">Template inheritance with Jinja2</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-start">
+                            <div class="flex-shrink-0">
+                                <div class="bg-danger rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">⚡</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Mobile-First Design</h6>
+                                <p class="mb-0 text-muted small">Optimized for all screen sizes</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Details -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h3 class="mb-0">⚙️ Technical Implementation</h3>
+            </div>
+            <div class="card-body">
+                <h5 class="mb-3">📋 Technology Stack</h5>
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6 col-lg-4">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h2">🐍</div>
+                            <h6>Python Flask</h6>
+                            <small class="text-muted">Web Framework</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h2">🎨</div>
+                            <h6>Bootstrap 5.3</h6>
+                            <small class="text-muted">CSS Framework</small>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 col-lg-4">
+                        <div class="text-center p-3 border rounded">
+                            <div class="h2">📄</div>
+                            <h6>Jinja2</h6>
+                            <small class="text-muted">Template Engine</small>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 class="mb-3">📐 Responsive Behavior</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Screen Size</th>
+                                <th>Navigation</th>
+                                <th>Layout</th>
+                                <th>Components</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-primary">Desktop (≥992px)</span></td>
+                                <td>Horizontal navbar</td>
+                                <td>Multi-column layout</td>
+                                <td>Full-featured cards</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-success">Tablet (768-991px)</span></td>
+                                <td>Collapsible navbar</td>
+                                <td>Flexible grid</td>
+                                <td>Responsive components</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-warning">Mobile (&lt;768px)</span></td>
+                                <td>Offcanvas menu</td>
+                                <td>Single column</td>
+                                <td>Touch-optimized</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar Information -->
+    <div class="col-lg-4">
+        <!-- Project Info -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">📊 Project Information</h4>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span><strong>Framework:</strong></span>
+                    <span class="badge bg-primary">Flask</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span><strong>Bootstrap:</strong></span>
+                    <span class="badge bg-success">v5.3.3</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span><strong>Python:</strong></span>
+                    <span class="badge bg-info">3.x</span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span><strong>Status:</strong></span>
+                    <span class="badge bg-success">Active</span>
+                </div>
+                <hr>
+                <h6 class="mb-2">📱 Device Support</h6>
+                <div class="progress mb-2" style="height: 8px;">
+                    <div class="progress-bar bg-success" style="width: 100%"></div>
+                </div>
+                <small class="text-muted">100% responsive across all devices</small>
+            </div>
+        </div>
+
+        <!-- Features Checklist -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">✅ Features Completed</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                    <li class="d-flex align-items-center mb-2">
+                        <span class="text-success me-2">✅</span>
+                        <span>Responsive navigation system</span>
+                    </li>
+                    <li class="d-flex align-items-center mb-2">
+                        <span class="text-success me-2">✅</span>
+                        <span>Bootstrap Offcanvas integration</span>
+                    </li>
+                    <li class="d-flex align-items-center mb-2">
+                        <span class="text-success me-2">✅</span>
+                        <span>Mobile-first design approach</span>
+                    </li>
+                    <li class="d-flex align-items-center mb-2">
+                        <span class="text-success me-2">✅</span>
+                        <span>Template inheritance structure</span>
+                    </li>
+                    <li class="d-flex align-items-center mb-2">
+                        <span class="text-success me-2">✅</span>
+                        <span>Cross-browser compatibility</span>
+                    </li>
+                    <li class="d-flex align-items-center">
+                        <span class="text-success me-2">✅</span>
+                        <span>Accessibility improvements</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-footer bg-light text-center">
+                <small class="text-muted">All core features implemented</small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

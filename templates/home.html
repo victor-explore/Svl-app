@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Home - Flask App{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-primary text-white p-5 rounded mb-4">
+            <div class="container-fluid py-5">
+                <h1 class="display-5 fw-bold">Welcome to the Flask App</h1>
+                <p class="col-md-8 fs-4">A modern Flask application with Bootstrap 5.3 integration, featuring responsive design and mobile-first approach.</p>
+                <button class="btn btn-light btn-lg" type="button">Get Started</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card h-100 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">🏠 Main Content</h3>
+            </div>
+            <div class="card-body">
+                <p class="lead">This is the home page of your Flask application with modern Bootstrap components.</p>
+                <hr>
+                <p>Navigate through the application using the responsive navigation bar above. The design adapts seamlessly to different screen sizes:</p>
+                <div class="row g-3 mt-3">
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <div class="bg-success rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">📱</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Mobile First</h6>
+                                <p class="mb-0 text-muted small">Optimized for mobile devices</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <div class="bg-info rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <span class="text-white">💻</span>
+                                </div>
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <h6 class="mb-1">Desktop Ready</h6>
+                                <p class="mb-0 text-muted small">Full-featured desktop experience</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <small class="text-muted">Last updated 3 mins ago</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <!-- Quick Info Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0">ℹ️ Quick Info</h4>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>✅ Bootstrap 5.3.3</span>
+                        <span class="badge bg-primary rounded-pill">Latest</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>✅ Responsive Navigation</span>
+                        <span class="badge bg-success rounded-pill">Active</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>✅ Mobile-friendly</span>
+                        <span class="badge bg-info rounded-pill">Ready</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>✅ Offcanvas Menu</span>
+                        <span class="badge bg-warning rounded-pill">New</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stats Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">📊 App Stats</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h3 class="text-primary">3</h3>
+                            <p class="mb-0 small text-muted">Pages</p>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-success">100%</h3>
+                        <p class="mb-0 small text-muted">Bootstrap</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
