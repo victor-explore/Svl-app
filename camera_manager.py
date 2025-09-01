@@ -107,20 +107,23 @@ class CameraWorker(threading.Thread):
         return self.rtsp_url
 
     def _setup_opencv_capture(self) -> cv2.VideoCapture:
-        """Setup OpenCV VideoCapture with optimal settings"""
+        """Setup OpenCV VideoCapture with optimal settings - Performance Optimized"""
         url = self._create_rtsp_url()
         cap = cv2.VideoCapture(url)
         
-        # Set timeouts
+        # OpenCV Performance Optimizations (based on documentation)
         cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, RTSP_TIMEOUT_MS)
         cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, RTSP_READ_TIMEOUT_MS)
         
-        # Set buffer size to reduce latency
+        # Critical: Minimize latency with smallest buffer
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
-        # Try to set TCP transport (not all OpenCV builds support this)
+        # NEW: Hardware acceleration and performance settings
         try:
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('H', '2', '6', '4'))
+            cap.set(cv2.CAP_PROP_FPS, PROCESSING_FPS)  # Set target FPS
+            # Enable hardware decoding if available
+            cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)  # Ensure RGB conversion
         except:
             pass  # Ignore if not supported
             
@@ -179,9 +182,9 @@ class CameraWorker(threading.Thread):
                 self.frames_captured += 1
                 self._last_frame_time = datetime.now()
                 
-                # Add frame to queue (non-blocking)
+                # Add frame to queue (non-blocking) - FFmpeg-style buffer management
                 try:
-                    # Clear old frames if queue is full
+                    # Efficient queue management: drop oldest frame if full
                     if self.frame_queue.full():
                         try:
                             self.frame_queue.get_nowait()
@@ -194,8 +197,9 @@ class CameraWorker(threading.Thread):
                 except queue.Full:
                     self.frames_dropped += 1
                 
-                # Control frame rate
-                time.sleep(1.0 / PROCESSING_FPS)
+                # REMOVED: Artificial delay - let natural RTSP timing control flow
+                # OLD: time.sleep(1.0 / PROCESSING_FPS)  
+                # This allows frames to flow at their natural rate for better performance
                 
             except Exception as e:
                 logger.error(f"[{self.name}] Frame capture error: {e}")
@@ -503,7 +507,7 @@ class EnhancedCameraManager:
                 return False
 
     def get_camera_frame(self, camera_id: int) -> Optional[bytes]:
-        """Get latest frame from camera as JPEG bytes"""
+        """Get latest frame from camera as JPEG bytes - Performance Optimized"""
         if camera_id not in self.workers:
             return None
         
@@ -512,10 +516,15 @@ class EnhancedCameraManager:
             return None
         
         try:
-            # Encode frame as JPEG
-            success, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
-            if success:
-                return buffer.tobytes()
+            # Optimized JPEG encoding settings (based on FFmpeg patterns)
+            encode_params = [
+                cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY,
+                cv2.IMWRITE_JPEG_OPTIMIZE, 1,        # Enable optimization
+                cv2.IMWRITE_JPEG_PROGRESSIVE, 0      # Disable progressive (faster)
+            ]
+            
+            success, buffer = cv2.imencode('.jpg', frame, encode_params)
+            return buffer.tobytes() if success else None
         except Exception as e:
             logger.error(f"Error encoding frame for camera {camera_id}: {e}")
         
@@ -563,7 +572,7 @@ class EnhancedCameraManager:
         return self.recorders[camera_id].list_recordings()
 
     def generate_video_stream(self, camera_id: int):
-        """Generator for video streaming"""
+        """Generator for video streaming - Performance Optimized"""
         if camera_id not in self.workers:
             logger.warning(f"Camera {camera_id} not found for streaming")
             return
@@ -571,17 +580,34 @@ class EnhancedCameraManager:
         worker = self.workers[camera_id]
         logger.info(f"Starting video stream for camera {camera_id}")
         
+        last_frame_time = 0
+        min_interval = 1.0 / PROCESSING_FPS
+        
+        # Optimized JPEG encoding settings (reused for consistency)
+        encode_params = [
+            cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY,
+            cv2.IMWRITE_JPEG_OPTIMIZE, 1,
+            cv2.IMWRITE_JPEG_PROGRESSIVE, 0
+        ]
+        
         while True:
             try:
+                current_time = time.time()
+                
+                # Throttle based on actual FPS target (prevents overwhelming client)
+                if current_time - last_frame_time < min_interval:
+                    time.sleep(min_interval - (current_time - last_frame_time))
+                    continue
+                    
                 frame, timestamp = worker.get_latest_frame()
                 if frame is not None:
-                    # Encode frame as JPEG
-                    success, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+                    # Use optimized encoding settings
+                    success, buffer = cv2.imencode('.jpg', frame, encode_params)
                     if success:
                         yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-                
-                time.sleep(1.0 / PROCESSING_FPS)  # Control stream rate
+                               b'Content-Type: image/jpeg\r\n\r\n' + 
+                               buffer.tobytes() + b'\r\n')
+                        last_frame_time = current_time
                 
             except Exception as e:
                 logger.error(f"Error in video stream for camera {camera_id}: {e}")

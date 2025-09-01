@@ -297,6 +297,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const cameraGrid = document.getElementById('cameraGrid');
     
     let updateInterval;
+    let fpsHistory = {}; // Store FPS history for smoothing
+
+    // FPS smoothing function for better user experience
+    function smoothFPS(cameraId, currentFPS) {
+        if (!fpsHistory[cameraId]) {
+            fpsHistory[cameraId] = [];
+        }
+        
+        fpsHistory[cameraId].push(currentFPS);
+        if (fpsHistory[cameraId].length > 5) {
+            fpsHistory[cameraId].shift(); // Keep last 5 readings
+        }
+        
+        // Return moving average
+        const avg = fpsHistory[cameraId].reduce((a, b) => a + b, 0) / fpsHistory[cameraId].length;
+        return Math.round(avg * 10) / 10; // Round to 1 decimal
+    }
 
     // Initialize real-time updates
     startRealTimeUpdates();
@@ -557,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function startRealTimeUpdates() {
         updateRealTimeStats();
-        updateInterval = setInterval(updateRealTimeStats, 3000); // Update every 3 seconds
+        updateInterval = setInterval(updateRealTimeStats, 5000); // Update every 5 seconds (reduced from 3s for better performance)
     }
 
     async function updateRealTimeStats() {
@@ -580,7 +597,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Update total frames
                 document.getElementById('totalFrames').textContent = systemStatus.total_frames_captured.toLocaleString();
                 
-                // Update individual camera stats
+                // Update individual camera stats with FPS smoothing
                 const cameraStatuses = result.camera_statuses;
                 for (const [cameraId, status] of Object.entries(cameraStatuses)) {
                     if (status) {
@@ -588,7 +605,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         const framesElement = document.querySelector(`[data-camera-id="${cameraId}"] .frames-captured`);
                         const connectionElement = document.querySelector(`[data-camera-id="${cameraId}"] .connection-status`);
                         
-                        if (fpsElement) fpsElement.textContent = status.fps;
+                        // Apply FPS smoothing for better user experience
+                        if (fpsElement) {
+                            const smoothedFPS = smoothFPS(cameraId, status.fps);
+                            fpsElement.textContent = smoothedFPS;
+                        }
                         if (framesElement) framesElement.textContent = status.frames_captured.toLocaleString();
                         if (connectionElement) connectionElement.textContent = status.status;
                         
