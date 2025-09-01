@@ -7,39 +7,24 @@
 <div class="row g-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
     <div class="col-lg-4 col-md-6">
-        <div class="card" data-camera-id="{{ camera.id }}">
-            <div class="card-header 
-                {% if camera.status == 'online' %}bg-success
-                {% elif camera.status == 'offline' %}bg-danger
-                {% elif camera.status == 'recording' %}bg-info
-                {% else %}bg-warning
-                {% endif %} text-white d-flex justify-content-between align-items-center shadow-sm">
-                <h5 class="mb-0">{{ camera.name }}</h5>
-                <div class="d-flex gap-2">
-                    <!-- Connection Status Badge -->
-                    <span class="badge 
-                        {% if camera.status == 'online' %}bg-success-subtle text-success-emphasis
-                        {% elif camera.status == 'offline' %}bg-danger-subtle text-danger-emphasis
-                        {% elif camera.status == 'recording' %}bg-info-subtle text-info-emphasis
-                        {% else %}bg-warning-subtle text-warning-emphasis
-                        {% endif %}">{% if camera.status == 'online' %}🟢 ONLINE
-                        {% elif camera.status == 'offline' %}🔴 OFFLINE
-                        {% elif camera.status == 'recording' %}🔵 RECORDING
-                        {% else %}🟡 CONNECTING
-                        {% endif %}</span>
-                    
-                    <!-- Delete Button -->
-                    <button class="btn btn-outline-danger btn-sm delete-btn" 
-                            data-camera-id="{{ camera.id }}"
-                            title="Delete Camera">
-                        🗑️
-                    </button>
-                </div>
+        <div class="card 
+                {% if camera.status == 'online' %}border-success
+                {% elif camera.status == 'offline' %}border-danger
+                {% elif camera.status == 'recording' %}border-info
+                {% else %}border-warning
+                {% endif %} mb-3 shadow" data-camera-id="{{ camera.id }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>{{ camera.name }}</span>
+                <button class="btn btn-outline-danger btn-sm delete-btn" 
+                        data-camera-id="{{ camera.id }}"
+                        title="Delete Camera">
+                    🗑️
+                </button>
             </div>
-            <div class="card-body p-0">
-                <!-- Wrapper for proper FPS badge positioning -->
-                <div class="position-relative">
-                    <div class="ratio ratio-16x9" style="background: {% if camera.status == 'online' %}var(--bs-dark){% elif camera.status == 'offline' %}var(--bs-secondary-bg){% else %}var(--bs-tertiary-bg){% endif %}; border-radius: var(--bs-border-radius);">
+            <div class="card-body">
+                <!-- Camera Stream -->
+                <div class="position-relative mb-3">
+                    <div class="ratio ratio-16x9" style="background: {% if camera.status == 'online' %}var(--bs-dark){% elif camera.status == 'offline' %}var(--bs-secondary-bg){% else %}var(--bs-tertiary-bg){% endif %};">
                         {% if camera.status == 'online' or camera.status == 'recording' %}
                             <img src="/api/cameras/{{ camera.id }}/stream" 
                                  class="position-absolute top-0 start-0 w-100 h-100" 
@@ -69,13 +54,14 @@
                         {% endif %}
                     </div>
                     
-                    <!-- FPS Overlay - Bottom Right (outside ratio container) -->
-                    <div class="position-absolute bottom-0 end-0 m-3">
-                        <span class="badge bg-dark bg-opacity-75 text-white rounded-pill px-3 py-2 shadow-sm" style="backdrop-filter: blur(8px); border: var(--bs-border-width) solid var(--bs-border-color-translucent);">
+                    <!-- FPS Overlay -->
+                    <div class="position-absolute bottom-0 end-0 m-2">
+                        <span class="badge bg-dark bg-opacity-75 text-white rounded-pill px-2 py-1" style="backdrop-filter: blur(8px);">
                             <small>📊 <span class="camera-fps fw-semibold" data-camera-id="{{ camera.id }}">--</span> FPS</small>
                         </span>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>
@@ -83,16 +69,14 @@
 
     <!-- Add New Camera Card -->
     <div class="col-lg-4 col-md-6">
-        <div class="card border-2 border-dashed">
-            <div class="card-body text-center d-flex align-items-center justify-content-center" style="height: 300px;">
-                <div>
-                    <div class="mb-3" style="font-size: 3rem; color: #6c757d;">➕</div>
-                    <h5 class="text-body-secondary mb-2">Add New Camera</h5>
-                    <p class="text-body-secondary small mb-3">Click to add a new RTSP camera feed</p>
-                    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addCameraModal">
-                        Add Camera
-                    </button>
-                </div>
+        <div class="card border-primary border-dashed mb-3 shadow">
+            <div class="card-header">Add New Camera</div>
+            <div class="card-body text-center">
+                <h4 class="card-title">➕ New Camera</h4>
+                <p class="card-text">Click to add a new RTSP camera feed to your surveillance system.</p>
+                <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                    Add Camera
+                </button>
             </div>
         </div>
     </div>
