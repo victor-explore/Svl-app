@@ -4,7 +4,7 @@
 
 {% block content %}
 <!-- Camera Grid -->
-<div class="row g-4" id="cameraGrid">
+<div class="row g-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
     <div class="col-lg-4 col-md-6">
         <div class="card" data-camera-id="{{ camera.id }}">
@@ -80,23 +80,17 @@
     </div>
 </div>
 
-<!-- Stats Footer -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card bg-light">
-            <div class="card-body py-2">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        📊 <strong>Stats:</strong> 
-                        <span class="badge bg-success me-2">{{ stats.online }} Online</span>
-                        <span class="badge bg-danger me-2">{{ stats.offline }} Offline</span>
-                        <span class="badge bg-warning me-2">{{ stats.connecting }} Connecting</span>
-                    </div>
-                    <div class="text-muted">
-                        🕐 <strong>Last Update:</strong> <span id="lastUpdate">2 sec ago</span>
-                    </div>
-                </div>
-            </div>
+<!-- Stats Bottom Aligned -->
+<div class="position-fixed bottom-0 start-0 w-100 bg-light border-top py-2" style="z-index: 1000;">
+    <div class="text-center">
+        <div class="mb-1">
+            📊 <strong>Stats:</strong> 
+            <span class="badge bg-success me-1">{{ stats.online }} Online</span>
+            <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
+            <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
+        </div>
+        <div class="text-muted">
+            🕐 <strong>Last Update:</strong> <span id="lastUpdate">1 min ago</span>
         </div>
     </div>
 </div>
@@ -406,13 +400,13 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // Update footer stats
-        const footerStats = document.querySelector('.card.bg-light .d-flex.justify-content-between div:first-child');
-        footerStats.innerHTML = `
+        // Update bottom stats
+        const bottomStats = document.querySelector('.position-fixed .text-center div:first-child');
+        bottomStats.innerHTML = `
             📊 <strong>Stats:</strong> 
-            <span class="badge bg-success me-2">${onlineCount} Online</span>
-            <span class="badge bg-danger me-2">${offlineCount} Offline</span>
-            <span class="badge bg-warning me-2">${connectingCount} Connecting</span>
+            <span class="badge bg-success me-1">${onlineCount} Online</span>
+            <span class="badge bg-danger me-1">${offlineCount} Offline</span>
+            <span class="badge bg-warning me-1">${connectingCount} Connecting</span>
         `;
 
         // Update last update time
