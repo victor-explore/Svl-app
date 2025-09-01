@@ -2,7 +2,7 @@ import signal
 import sys
 import time
 from camera_io import CameraManager
-from detection_tracking import Detector
+from detection_tracking import DetectionTracker as Detector
 from reporting import Reporter
 from config import CAMERAS
 

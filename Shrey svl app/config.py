@@ -14,7 +14,7 @@ PROCESS_FPS = 5                        # YOLO per-camera processing rate (tracki
 YOLO_MODEL = "yolov8s.pt"
 CONF_THRES = 0.35
 NMS_IOU = 0.5
-DEVICE = "cuda:0"                      # "cuda:0" or "cpu"
+DEVICE = "cpu"                          # "cuda:0" or "cpu"
 
 # Classes to detect (names as per COCO 80). Empty/None => all classes.
 SELECTED_CLASSES = []

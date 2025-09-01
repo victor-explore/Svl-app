@@ -26,17 +26,14 @@ COCO_NAMES = [
     'teddy bear','hair drier','toothbrush'
 ]
 
-# Attempt to import TorchReID extractor from either namespace
+# Import TorchReID extractor
 FeatureExtractor = None
 try:
     from torchreid.reid.utils import FeatureExtractor as _FE
     FeatureExtractor = _FE
-except Exception:
-    try:
-        from torchreid.utils import FeatureExtractor as _FE2
-        FeatureExtractor = _FE2
-    except Exception:
-        FeatureExtractor = None
+except Exception as e:
+    print(f"[Warning] Could not import FeatureExtractor: {e}")
+    FeatureExtractor = None
 
 def cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
     d = float(np.dot(a, b))
