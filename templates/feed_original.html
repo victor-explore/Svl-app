@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+
+{% block title %}Camera Feed - Flask App{% endblock %}
+
+{% block content %}
+<!-- Camera Grid -->
+<div class="row g-4 mb-5 pb-4" id="cameraGrid">
+    {% for camera in cameras %}
+    <div class="col-lg-4 col-md-6">
+        <div class="card" data-camera-id="{{ camera.id }}">
+            <div class="card-header 
+                {% if camera.status == 'online' %}bg-success
+                {% elif camera.status == 'offline' %}bg-danger
+                {% else %}bg-warning
+                {% endif %} text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ camera.name }}</h5>
+                <span class="badge bg-light 
+                    {% if camera.status == 'online' %}text-success">🟢 ONLINE
+                    {% elif camera.status == 'offline' %}text-danger">🔴 OFFLINE
+                    {% else %}text-warning">🟡 CONNECTING
+                    {% endif %}</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="position-relative" style="height: 200px; background: {% if camera.status == 'online' %}#000{% elif camera.status == 'offline' %}#333{% else %}#666{% endif %};">
+                    {% if camera.status == 'online' %}
+                        <img src="/api/cameras/{{ camera.id }}/stream" 
+                             style="width: 100%; height: 200px; object-fit: cover;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                             alt="Live stream from {{ camera.name }}">
+                        <div class="d-none align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
+                            <div class="text-center">
+                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div>[STREAM ERROR]</div>
+                                <div class="mt-2">❌ FAILED</div>
+                            </div>
+                        </div>
+                    {% elif camera.status == 'offline' %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                            <div class="text-center">
+                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div>[NO SIGNAL]</div>
+                                <div class="mt-2">🔴 OFFLINE</div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <div>[CONNECTING...]</div>
+                                <div class="mt-2">🟡 CONNECTING</div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="p-3">
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Add New Camera Card -->
+    <div class="col-lg-4 col-md-6">
+        <div class="card border-2 border-dashed">
+            <div class="card-body text-center d-flex align-items-center justify-content-center" style="height: 300px;">
+                <div>
+                    <div class="mb-3" style="font-size: 3rem; color: #6c757d;">➕</div>
+                    <h5 class="text-muted mb-2">Add New Camera</h5>
+                    <p class="text-muted small mb-3">Click to add a new RTSP camera feed</p>
+                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                        Add Camera
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Bottom Aligned -->
+<div class="position-fixed bottom-0 start-0 w-100 bg-light border-top py-2" style="z-index: 1000;">
+    <div class="text-center">
+        <div class="mb-1">
+            📊 <strong>Stats:</strong> 
+            <span class="badge bg-success me-1">{{ stats.online }} Online</span>
+            <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
+            <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
+        </div>
+        <div class="text-muted">
+            🕐 <strong>Last Update:</strong> <span id="lastUpdate">1 min ago</span>
+        </div>
+    </div>
+</div>
+
+<!-- Add Camera Modal -->
+<div class="modal fade" id="addCameraModal" tabindex="-1" aria-labelledby="addCameraModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h1 class="modal-title fs-5" id="addCameraModalLabel">➕ Add New Camera</h1>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCameraForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cameraName" class="form-label">Camera Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
+                            <div class="form-text">Enter a descriptive name for your camera</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="rtspUrl" class="form-label">RTSP URL <span class="text-danger">*</span></label>
+                            <input type="url" class="form-control" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
+                            <div class="form-text">Complete RTSP stream URL</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" placeholder="admin">
+                            <div class="form-text">Camera authentication username (optional)</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" placeholder="••••••••">
+                            <div class="form-text">Camera authentication password (optional)</div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="autoStart" name="autoStart" checked>
+                                <label class="form-check-label" for="autoStart">
+                                    ☐ Auto-start stream
+                                </label>
+                                <div class="form-text">Automatically start streaming when camera is added</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="recordFootage" name="recordFootage">
+                                <label class="form-check-label" for="recordFootage">
+                                    ☐ Record footage
+                                </label>
+                                <div class="form-text">Enable automatic recording of camera feed</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Test Status -->
+                    <div id="connectionStatus" class="alert alert-info d-none" role="alert">
+                        <div class="d-flex align-items-center">
+                            <div class="spinner-border spinner-border-sm me-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            Testing connection...
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-info" id="testConnection">
+                    🔗 Test Connection
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-success" id="addCameraBtn">
+                    ➕ Add Camera
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const testConnectionBtn = document.getElementById('testConnection');
+    const addCameraBtn = document.getElementById('addCameraBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const addCameraForm = document.getElementById('addCameraForm');
+    const cameraGrid = document.getElementById('cameraGrid');
+
+    // Test Connection functionality
+    testConnectionBtn.addEventListener('click', function() {
+        const rtspUrl = document.getElementById('rtspUrl').value.trim();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        if (!rtspUrl) {
+            alert('Please enter an RTSP URL first.');
+            return;
+        }
+
+        // Show loading status
+        connectionStatus.className = 'alert alert-info';
+        connectionStatus.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                Testing connection to ${rtspUrl}...
+            </div>
+        `;
+        connectionStatus.classList.remove('d-none');
+
+        // Simulate connection test (replace with actual RTSP test)
+        setTimeout(() => {
+            const isSuccess = Math.random() > 0.3; // 70% success rate for demo
+            
+            if (isSuccess) {
+                connectionStatus.className = 'alert alert-success';
+                connectionStatus.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="me-2">✅</span>
+                        Connection successful! Camera stream is accessible.
+                    </div>
+                `;
+            } else {
+                connectionStatus.className = 'alert alert-danger';
+                connectionStatus.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <span class="me-2">❌</span>
+                        Connection failed. Please check the RTSP URL and credentials.
+                    </div>
+                `;
+            }
+        }, 2000);
+    });
+
+    // Add Camera functionality
+    addCameraBtn.addEventListener('click', function() {
+        const formData = new FormData(addCameraForm);
+        const cameraName = formData.get('cameraName').trim();
+        const rtspUrl = formData.get('rtspUrl').trim();
+        const username = formData.get('username').trim();
+        const password = formData.get('password').trim();
+        const autoStart = formData.get('autoStart') === 'on';
+        const recordFootage = formData.get('recordFootage') === 'on';
+
+        // Validate required fields
+        if (!cameraName || !rtspUrl) {
+            alert('Please fill in all required fields (Camera Name and RTSP URL).');
+            return;
+        }
+
+        // Create new camera card
+        const cameraId = Date.now(); // Simple ID generation
+        const newCameraCard = createCameraCard(cameraId, cameraName, rtspUrl, autoStart);
+        
+        // Find the "Add New Camera" card and insert before it
+        const addNewCard = cameraGrid.querySelector('.border-dashed').parentElement;
+        cameraGrid.insertBefore(newCameraCard, addNewCard);
+
+        // Clear form and close modal
+        addCameraForm.reset();
+        document.getElementById('autoStart').checked = true; // Reset to default
+        connectionStatus.classList.add('d-none');
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('addCameraModal'));
+        modal.hide();
+
+        // Update stats
+        updateStats();
+        
+        // Show success message
+        showNotification('Camera added successfully!', 'success');
+    });
+
+    function createCameraCard(id, name, rtspUrl, autoStart) {
+        const col = document.createElement('div');
+        col.className = 'col-lg-4 col-md-6';
+        
+        const status = autoStart ? 'connecting' : 'offline';
+        const statusInfo = getStatusInfo(status);
+        
+        col.innerHTML = `
+            <div class="card" data-camera-id="${id}">
+                <div class="card-header ${statusInfo.headerClass} text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">${name}</h5>
+                    <span class="badge bg-light ${statusInfo.badgeClass}">${statusInfo.statusText}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="position-relative" style="height: 200px; background: ${statusInfo.bgColor};">
+                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                            <div class="text-center">
+                                ${statusInfo.content}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-3">
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // If auto-start is enabled, simulate connection process
+        if (autoStart) {
+            setTimeout(() => {
+                const card = col.querySelector('[data-camera-id="' + id + '"]');
+                const success = Math.random() > 0.2; // 80% success rate
+                updateCameraStatus(card, success ? 'online' : 'offline');
+                updateStats();
+            }, 3000 + Math.random() * 2000); // 3-5 second delay
+        }
+
+        return col;
+    }
+
+    function getStatusInfo(status) {
+        switch(status) {
+            case 'online':
+                return {
+                    headerClass: 'bg-success',
+                    badgeClass: 'text-success',
+                    statusText: '🟢 ONLINE',
+                    bgColor: '#000',
+                    content: `
+                        <div class="mb-2" style="font-size: 2rem;">📺</div>
+                        <div>[LIVE FEED]</div>
+                        <div class="mt-2">🟢 STREAMING</div>
+                    `,
+                    buttons: ''
+                };
+            case 'offline':
+                return {
+                    headerClass: 'bg-danger',
+                    badgeClass: 'text-danger',
+                    statusText: '🔴 OFFLINE',
+                    bgColor: '#333',
+                    content: `
+                        <div class="mb-2" style="font-size: 2rem;">📺</div>
+                        <div>[NO SIGNAL]</div>
+                        <div class="mt-2">🔴 OFFLINE</div>
+                    `,
+                    buttons: ''
+                };
+            case 'connecting':
+                return {
+                    headerClass: 'bg-warning',
+                    badgeClass: 'text-warning',
+                    statusText: '🟡 CONNECTING',
+                    bgColor: '#666',
+                    content: `
+                        <div class="mb-2">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                        <div>[CONNECTING...]</div>
+                        <div class="mt-2">🟡 CONNECTING</div>
+                    `,
+                    buttons: ''
+                };
+        }
+    }
+
+    function updateCameraStatus(cardElement, newStatus) {
+        const statusInfo = getStatusInfo(newStatus);
+        const header = cardElement.querySelector('.card-header');
+        const statusBadge = header.querySelector('.badge');
+        const feedArea = cardElement.querySelector('.position-relative');
+        const buttonsArea = cardElement.querySelector('.mt-2');
+
+        // Update header class
+        header.className = `card-header ${statusInfo.headerClass} text-white d-flex justify-content-between align-items-center`;
+        
+        // Update status badge
+        statusBadge.className = `badge bg-light ${statusInfo.badgeClass}`;
+        statusBadge.textContent = statusInfo.statusText;
+        
+        // Update feed area
+        feedArea.style.background = statusInfo.bgColor;
+        feedArea.querySelector('.text-center').innerHTML = statusInfo.content;
+        
+        // Update buttons
+        buttonsArea.innerHTML = statusInfo.buttons;
+    }
+
+    function updateStats() {
+        const cards = cameraGrid.querySelectorAll('.card[data-camera-id]');
+        let onlineCount = 0;
+        let offlineCount = 0;
+        let connectingCount = 0;
+
+        cards.forEach(card => {
+            const statusBadge = card.querySelector('.badge');
+            if (statusBadge.textContent.includes('ONLINE')) {
+                onlineCount++;
+            } else if (statusBadge.textContent.includes('OFFLINE')) {
+                offlineCount++;
+            } else if (statusBadge.textContent.includes('CONNECTING')) {
+                connectingCount++;
+            }
+        });
+
+        // Update bottom stats
+        const bottomStats = document.querySelector('.position-fixed .text-center div:first-child');
+        bottomStats.innerHTML = `
+            📊 <strong>Stats:</strong> 
+            <span class="badge bg-success me-1">${onlineCount} Online</span>
+            <span class="badge bg-danger me-1">${offlineCount} Offline</span>
+            <span class="badge bg-warning me-1">${connectingCount} Connecting</span>
+        `;
+
+        // Update last update time
+        document.getElementById('lastUpdate').textContent = 'just now';
+    }
+
+    function showNotification(message, type) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+        alertDiv.style.zIndex = '9999';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 3000);
+    }
+
+    // Update last update time periodically
+    setInterval(() => {
+        const lastUpdateEl = document.getElementById('lastUpdate');
+        const currentTime = Date.now();
+        const timeDiff = Math.floor((currentTime - (lastUpdateEl.dataset.lastUpdate || currentTime)) / 1000);
+        
+        if (timeDiff < 60) {
+            lastUpdateEl.textContent = `${timeDiff} sec ago`;
+        } else if (timeDiff < 3600) {
+            lastUpdateEl.textContent = `${Math.floor(timeDiff / 60)} min ago`;
+        } else {
+            lastUpdateEl.textContent = `${Math.floor(timeDiff / 3600)} hr ago`;
+        }
+    }, 1000);
+
+    // Initialize last update timestamp
+    document.getElementById('lastUpdate').dataset.lastUpdate = Date.now();
+});
+</script>
+{% endblock %}

@@ -2,8 +2,21 @@ from flask import Flask, render_template, request, jsonify, Response
 import time
 import random
 import cv2
+import atexit
+import threading
+from camera_manager import EnhancedCameraManager, CameraStatus
+from config import *
 
 app = Flask(__name__)
+
+# Initialize enhanced camera manager
+camera_manager = EnhancedCameraManager()
+
+# Ensure cleanup on app shutdown
+@atexit.register
+def cleanup():
+    if camera_manager:
+        camera_manager.shutdown()
 
 # In-memory storage for cameras (replace with database in production)
 cameras = [
@@ -64,24 +77,60 @@ cameras = [
     }
 ]
 
+def initialize_cameras():
+    """Initialize all cameras in the enhanced camera manager"""
+    for camera in cameras:
+        # Add default fields for compatibility
+        camera.setdefault('recording_status', 'stopped')
+        camera.setdefault('username', '')
+        camera.setdefault('password', '')
+        
+        # Add to camera manager
+        camera_manager.add_camera(camera)
+        
+        # Update status based on camera manager
+        camera_status = camera_manager.get_camera_status(camera['id'])
+        if camera_status:
+            camera['status'] = camera_status['status']
+
+# Initialize cameras on startup
+initialize_cameras()
+
 @app.route('/')
 def home():
     return render_template('home.html')
 
 @app.route('/feed')
 def feed():
+    # Update camera statuses from camera manager
+    for camera in cameras:
+        camera_status = camera_manager.get_camera_status(camera['id'])
+        if camera_status:
+            camera['status'] = camera_status['status']
+            camera['recording_status'] = 'recording' if camera_status['recording']['is_recording'] else 'stopped'
+    
     # Count cameras by status
     stats = {
         'online': len([c for c in cameras if c['status'] == 'online']),
         'offline': len([c for c in cameras if c['status'] == 'offline']),
-        'connecting': len([c for c in cameras if c['status'] == 'connecting'])
+        'connecting': len([c for c in cameras if c['status'] == 'connecting']),
+        'recording': len([c for c in cameras if c.get('recording_status') == 'recording'])
     }
     return render_template('feed.html', cameras=cameras, stats=stats)
 
 
 @app.route('/api/cameras', methods=['GET'])
 def get_cameras():
-    """Get all cameras"""
+    """Get all cameras with real-time status"""
+    # Update camera statuses from camera manager
+    for camera in cameras:
+        camera_status = camera_manager.get_camera_status(camera['id'])
+        if camera_status:
+            camera['status'] = camera_status['status']
+            camera['recording_status'] = 'recording' if camera_status['recording']['is_recording'] else 'stopped'
+            camera['fps'] = camera_status.get('fps', 0)
+            camera['frames_captured'] = camera_status.get('frames_captured', 0)
+    
     return jsonify({
         'success': True,
         'cameras': cameras,
@@ -111,22 +160,18 @@ def add_camera():
             'status': 'connecting' if data.get('auto_start', True) else 'offline',
             'auto_start': data.get('auto_start', True),
             'record_footage': data.get('record_footage', False),
+            'recording_status': 'stopped',
             'created_at': time.time()
         }
         
         cameras.append(new_camera)
         
-        # Simulate status change after a delay (in real app, this would be handled by camera connection logic)
-        if new_camera['auto_start']:
-            # Simulate connection success/failure after 3-5 seconds
-            import threading
-            def update_status():
-                time.sleep(random.uniform(3, 5))
-                new_camera['status'] = 'online' if random.random() > 0.2 else 'offline'
-            
-            thread = threading.Thread(target=update_status)
-            thread.daemon = True
-            thread.start()
+        # Add camera to enhanced camera manager
+        if camera_manager.add_camera(new_camera):
+            # Start auto-recording if enabled
+            if new_camera['record_footage'] and RECORDING_AUTO_START:
+                camera_manager.start_recording(new_camera['id'])
+                new_camera['recording_status'] = 'recording'
         
         return jsonify({
             'success': True,
@@ -155,41 +200,66 @@ def test_camera_connection():
                 'error': 'RTSP URL is required'
             }), 400
         
-        # Real RTSP connection test using OpenCV
+        # Enhanced RTSP connection test using camera worker
         try:
             print(f"[DEBUG] Testing connection to: {rtsp_url}")
-            cap = cv2.VideoCapture(rtsp_url)
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # 5 second timeout
-            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)   # 5 second read timeout
             
-            if not cap.isOpened():
-                print(f"[DEBUG] Connection test failed - could not open: {rtsp_url}")
-                cap.release()
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to open RTSP stream. Check URL and credentials.',
-                    'rtsp_url': rtsp_url
-                })
+            # Create a temporary camera worker for testing
+            from camera_manager import CameraWorker
+            test_worker = CameraWorker(
+                camera_id=999,  # Temporary ID
+                name="Test Camera",
+                rtsp_url=rtsp_url,
+                username=username,
+                password=password
+            )
             
-            print(f"[DEBUG] VideoCapture opened, trying to read test frame...")
-            # Try to read one frame to verify stream is working
-            ret, frame = cap.read()
-            cap.release()
+            test_worker.start()
             
-            if ret and frame is not None:
-                print(f"[DEBUG] Connection test SUCCESS - frame shape: {frame.shape}")
-                return jsonify({
-                    'success': True,
-                    'message': 'Connection successful! Camera stream is accessible.',
-                    'rtsp_url': rtsp_url
-                })
-            else:
-                print(f"[DEBUG] Connection test FAILED - ret: {ret}, frame is None: {frame is None}")
-                return jsonify({
-                    'success': False,
-                    'error': 'RTSP stream opened but no frames received. Check stream format.',
-                    'rtsp_url': rtsp_url
-                })
+            # Wait a few seconds for connection attempt
+            connection_timeout = 10
+            start_time = time.time()
+            
+            while time.time() - start_time < connection_timeout:
+                status = test_worker.status
+                if status == CameraStatus.ONLINE:
+                    # Try to get a frame
+                    frame, timestamp = test_worker.get_latest_frame()
+                    test_worker.stop()
+                    
+                    if frame is not None:
+                        print(f"[DEBUG] Connection test SUCCESS - frame shape: {frame.shape}")
+                        return jsonify({
+                            'success': True,
+                            'message': 'Connection successful! Camera stream is accessible.',
+                            'rtsp_url': rtsp_url,
+                            'frame_shape': frame.shape
+                        })
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Connected but no frames received yet. Stream may need more time.',
+                            'rtsp_url': rtsp_url
+                        })
+                        
+                elif status == CameraStatus.ERROR:
+                    test_worker.stop()
+                    stats = test_worker.get_stats()
+                    return jsonify({
+                        'success': False,
+                        'error': f'Connection failed: {stats.get("last_error", "Unknown error")}',
+                        'rtsp_url': rtsp_url
+                    })
+                
+                time.sleep(0.5)  # Check every 500ms
+            
+            # Timeout reached
+            test_worker.stop()
+            return jsonify({
+                'success': False,
+                'error': 'Connection test timeout. Camera may be unreachable.',
+                'rtsp_url': rtsp_url
+            })
                 
         except Exception as e:
             print(f"[ERROR] Connection test exception for {rtsp_url}: {e}")
@@ -209,6 +279,10 @@ def test_camera_connection():
 def delete_camera(camera_id):
     """Delete a camera"""
     try:
+        # Remove from camera manager first
+        camera_manager.remove_camera(camera_id)
+        
+        # Remove from in-memory storage
         global cameras
         cameras = [c for c in cameras if c['id'] != camera_id]
         
@@ -258,115 +332,27 @@ def update_camera_status(camera_id):
             'error': str(e)
         }), 500
 
-def get_camera_frame(rtsp_url):
-    """Get a single frame from RTSP camera"""
-    print(f"[DEBUG] get_camera_frame called with URL: {rtsp_url}")
+def get_camera_frame(camera_id):
+    """Get a single frame from camera using enhanced camera manager"""
+    print(f"[DEBUG] get_camera_frame called for camera_id: {camera_id}")
     try:
-        print(f"[DEBUG] Creating VideoCapture for {rtsp_url}")
-        cap = cv2.VideoCapture(rtsp_url)
-        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # 5 second timeout
-        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)   # 5 second read timeout
-        
-        if not cap.isOpened():
-            print(f"[DEBUG] Failed to open VideoCapture for {rtsp_url}")
-            cap.release()
+        frame_bytes = camera_manager.get_camera_frame(camera_id)
+        if frame_bytes:
+            print(f"[DEBUG] Frame retrieved successfully, size: {len(frame_bytes)} bytes")
+            return frame_bytes
+        else:
+            print(f"[DEBUG] No frame available for camera {camera_id}")
             return None
-        
-        print(f"[DEBUG] VideoCapture opened successfully, reading frame...")
-        ret, frame = cap.read()
-        cap.release()
-        
-        if ret and frame is not None:
-            print(f"[DEBUG] Frame read successfully, shape: {frame.shape}")
-            # Convert BGR to RGB for web display
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            # Encode as JPEG
-            _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            print(f"[DEBUG] Frame encoded to JPEG, size: {len(buffer.tobytes())} bytes")
-            return buffer.tobytes()
-        
-        print(f"[DEBUG] Failed to read frame: ret={ret}, frame is None: {frame is None}")
-        return None
-        
     except Exception as e:
-        print(f"[ERROR] Exception in get_camera_frame from {rtsp_url}: {e}")
+        print(f"[ERROR] Exception in get_camera_frame for camera {camera_id}: {e}")
         return None
-
-def generate_video_stream(rtsp_url):
-    """Generate video stream from RTSP camera"""
-    print(f"[DEBUG] generate_video_stream started for URL: {rtsp_url}")
-    
-    # Set timeout for OpenCV VideoCapture
-    cap = cv2.VideoCapture(rtsp_url)
-    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # 5 second timeout
-    cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)   # 5 second read timeout
-    
-    try:
-        frame_count = 0
-        print(f"[DEBUG] Attempting to open VideoCapture with 5s timeout...")
-        
-        if not cap.isOpened():
-            print(f"[ERROR] Failed to open VideoCapture in generate_video_stream for {rtsp_url}")
-            return
-        
-        print(f"[DEBUG] VideoCapture opened successfully, starting streaming loop...")
-        
-        consecutive_failures = 0
-        max_failures = 10
-        
-        while True:
-            if not cap.isOpened():
-                print(f"[DEBUG] VideoCapture closed unexpectedly, breaking loop")
-                break
-                
-            ret, frame = cap.read()
-            frame_count += 1
-            
-            if not ret or frame is None:
-                consecutive_failures += 1
-                print(f"[DEBUG] Failed to read frame {frame_count}: ret={ret}, frame is None: {frame is None}, consecutive failures: {consecutive_failures}")
-                
-                if consecutive_failures >= max_failures:
-                    print(f"[ERROR] Too many consecutive failures ({consecutive_failures}), stopping stream")
-                    break
-                    
-                time.sleep(0.1)  # Brief pause before retry
-                continue
-            
-            consecutive_failures = 0  # Reset failure counter on success
-            
-            if frame_count % 30 == 1:  # Log every 30th frame to avoid spam
-                print(f"[DEBUG] Successfully read frame {frame_count}, shape: {frame.shape}")
-            
-            # Convert BGR to RGB for web display
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            
-            # Encode frame as JPEG
-            success, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            
-            if not success:
-                print(f"[ERROR] Failed to encode frame {frame_count} as JPEG")
-                continue
-            
-            # Yield frame in multipart format
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-                   
-    except Exception as e:
-        print(f"[ERROR] Exception in video stream for {rtsp_url}: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        print(f"[DEBUG] Cleaning up VideoCapture for {rtsp_url}")
-        if cap.isOpened():
-            cap.release()
 
 @app.route('/api/cameras/<int:camera_id>/stream')
 def stream_camera(camera_id):
-    """Stream video from RTSP camera"""
+    """Stream video from RTSP camera using enhanced camera manager"""
     print(f"[DEBUG] stream_camera endpoint called for camera_id: {camera_id}")
     try:
-        # Find camera by ID
+        # Check if camera exists
         camera = next((c for c in cameras if c['id'] == camera_id), None)
         if not camera:
             print(f"[ERROR] Camera with ID {camera_id} not found")
@@ -375,12 +361,11 @@ def stream_camera(camera_id):
                 'error': 'Camera not found'
             }), 404
         
-        rtsp_url = camera['rtsp_url']
-        print(f"[DEBUG] Found camera '{camera['name']}' with URL: {rtsp_url}")
+        print(f"[DEBUG] Found camera '{camera['name']}', starting enhanced stream...")
         
-        print(f"[DEBUG] Starting Response with generate_video_stream...")
+        # Use enhanced camera manager for streaming
         return Response(
-            generate_video_stream(rtsp_url),
+            camera_manager.generate_video_stream(camera_id),
             mimetype='multipart/x-mixed-replace; boundary=frame'
         )
         
@@ -388,6 +373,223 @@ def stream_camera(camera_id):
         print(f"[ERROR] Exception in stream_camera for camera_id {camera_id}: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# New Enhanced API Endpoints
+
+@app.route('/api/cameras/<int:camera_id>/recording/start', methods=['POST'])
+def start_camera_recording(camera_id):
+    """Start recording for a specific camera"""
+    try:
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        if camera_manager.start_recording(camera_id):
+            # Update camera status
+            camera['recording_status'] = 'recording'
+            camera['record_footage'] = True
+            
+            return jsonify({
+                'success': True,
+                'message': f'Recording started for camera {camera["name"]}',
+                'camera_id': camera_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to start recording. Camera may already be recording.'
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cameras/<int:camera_id>/recording/stop', methods=['POST'])
+def stop_camera_recording(camera_id):
+    """Stop recording for a specific camera"""
+    try:
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        if camera_manager.stop_recording(camera_id):
+            # Update camera status
+            camera['recording_status'] = 'stopped'
+            camera['record_footage'] = False
+            
+            return jsonify({
+                'success': True,
+                'message': f'Recording stopped for camera {camera["name"]}',
+                'camera_id': camera_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to stop recording. Camera may not be recording.'
+            }), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cameras/<int:camera_id>/recording/toggle', methods=['POST'])
+def toggle_camera_recording(camera_id):
+    """Toggle recording for a specific camera"""
+    try:
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        # Get current recording status
+        camera_status = camera_manager.get_camera_status(camera_id)
+        if not camera_status:
+            return jsonify({
+                'success': False,
+                'error': 'Camera status unavailable'
+            }), 500
+        
+        is_recording = camera_status['recording']['is_recording']
+        
+        if is_recording:
+            # Stop recording
+            if camera_manager.stop_recording(camera_id):
+                camera['recording_status'] = 'stopped'
+                camera['record_footage'] = False
+                return jsonify({
+                    'success': True,
+                    'message': f'Recording stopped for camera {camera["name"]}',
+                    'recording_status': 'stopped'
+                })
+        else:
+            # Start recording
+            if camera_manager.start_recording(camera_id):
+                camera['recording_status'] = 'recording'
+                camera['record_footage'] = True
+                return jsonify({
+                    'success': True,
+                    'message': f'Recording started for camera {camera["name"]}',
+                    'recording_status': 'recording'
+                })
+        
+        return jsonify({
+            'success': False,
+            'error': 'Failed to toggle recording'
+        }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cameras/<int:camera_id>/status', methods=['GET'])
+def get_detailed_camera_status(camera_id):
+    """Get detailed status for a specific camera"""
+    try:
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        # Get detailed status from camera manager
+        detailed_status = camera_manager.get_camera_status(camera_id)
+        if not detailed_status:
+            return jsonify({
+                'success': False,
+                'error': 'Camera status unavailable'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'camera_id': camera_id,
+            'camera_name': camera['name'],
+            'status': detailed_status
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cameras/<int:camera_id>/recordings', methods=['GET'])
+def list_camera_recordings(camera_id):
+    """List all recordings for a specific camera"""
+    try:
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        recordings = camera_manager.list_recordings(camera_id)
+        
+        return jsonify({
+            'success': True,
+            'camera_id': camera_id,
+            'camera_name': camera['name'],
+            'recordings': recordings,
+            'count': len(recordings)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/system/status', methods=['GET'])
+def get_system_status():
+    """Get overall system status"""
+    try:
+        all_statuses = camera_manager.get_all_camera_statuses()
+        
+        # Calculate system statistics
+        total_cameras = len(cameras)
+        online_cameras = sum(1 for status in all_statuses.values() if status and status['status'] == 'online')
+        recording_cameras = sum(1 for status in all_statuses.values() if status and status['recording']['is_recording'])
+        
+        # Calculate total frames captured
+        total_frames = sum(status['frames_captured'] for status in all_statuses.values() if status)
+        
+        return jsonify({
+            'success': True,
+            'system_status': {
+                'total_cameras': total_cameras,
+                'online_cameras': online_cameras,
+                'offline_cameras': total_cameras - online_cameras,
+                'recording_cameras': recording_cameras,
+                'total_frames_captured': total_frames
+            },
+            'camera_statuses': all_statuses
+        })
+        
+    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
