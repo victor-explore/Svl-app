@@ -13,15 +13,19 @@
                 {% elif camera.status == 'offline' %}bg-danger
                 {% elif camera.status == 'recording' %}bg-info
                 {% else %}bg-warning
-                {% endif %} text-white d-flex justify-content-between align-items-center">
+                {% endif %} text-white d-flex justify-content-between align-items-center shadow-sm">
                 <h5 class="mb-0">{{ camera.name }}</h5>
                 <div class="d-flex gap-2">
                     <!-- Connection Status Badge -->
-                    <span class="badge bg-light 
-                        {% if camera.status == 'online' %}text-success">🟢 ONLINE
-                        {% elif camera.status == 'offline' %}text-danger">🔴 OFFLINE
-                        {% elif camera.status == 'recording' %}text-info">🔵 RECORDING
-                        {% else %}text-warning">🟡 CONNECTING
+                    <span class="badge 
+                        {% if camera.status == 'online' %}bg-success-subtle text-success-emphasis
+                        {% elif camera.status == 'offline' %}bg-danger-subtle text-danger-emphasis
+                        {% elif camera.status == 'recording' %}bg-info-subtle text-info-emphasis
+                        {% else %}bg-warning-subtle text-warning-emphasis
+                        {% endif %}">{% if camera.status == 'online' %}🟢 ONLINE
+                        {% elif camera.status == 'offline' %}🔴 OFFLINE
+                        {% elif camera.status == 'recording' %}🔵 RECORDING
+                        {% else %}🟡 CONNECTING
                         {% endif %}</span>
                     
                     <!-- Delete Button -->
@@ -35,7 +39,7 @@
             <div class="card-body p-0">
                 <!-- Wrapper for proper FPS badge positioning -->
                 <div class="position-relative">
-                    <div class="ratio ratio-16x9" style="background: {% if camera.status == 'online' %}#000{% elif camera.status == 'offline' %}#333{% else %}linear-gradient(135deg, #666 0%, #555 100%){% endif %}; border-radius: 0 0 0.375rem 0.375rem;">
+                    <div class="ratio ratio-16x9" style="background: {% if camera.status == 'online' %}var(--bs-dark){% elif camera.status == 'offline' %}var(--bs-secondary-bg){% else %}var(--bs-tertiary-bg){% endif %}; border-radius: var(--bs-border-radius);">
                         {% if camera.status == 'online' or camera.status == 'recording' %}
                             <img src="/api/cameras/{{ camera.id }}/stream" 
                                  class="position-absolute top-0 start-0 w-100 h-100" 
@@ -67,7 +71,7 @@
                     
                     <!-- FPS Overlay - Bottom Right (outside ratio container) -->
                     <div class="position-absolute bottom-0 end-0 m-3">
-                        <span class="badge bg-dark bg-opacity-50 text-white rounded-pill px-3 py-2" style="backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.1);">
+                        <span class="badge bg-dark bg-opacity-75 text-white rounded-pill px-3 py-2 shadow-sm" style="backdrop-filter: blur(8px); border: var(--bs-border-width) solid var(--bs-border-color-translucent);">
                             <small>📊 <span class="camera-fps fw-semibold" data-camera-id="{{ camera.id }}">--</span> FPS</small>
                         </span>
                     </div>
@@ -83,9 +87,9 @@
             <div class="card-body text-center d-flex align-items-center justify-content-center" style="height: 300px;">
                 <div>
                     <div class="mb-3" style="font-size: 3rem; color: #6c757d;">➕</div>
-                    <h5 class="text-muted mb-2">Add New Camera</h5>
-                    <p class="text-muted small mb-3">Click to add a new RTSP camera feed</p>
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                    <h5 class="text-body-secondary mb-2">Add New Camera</h5>
+                    <p class="text-body-secondary small mb-3">Click to add a new RTSP camera feed</p>
+                    <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addCameraModal">
                         Add Camera
                     </button>
                 </div>
@@ -95,7 +99,7 @@
 </div>
 
 <!-- Enhanced Stats Bottom Aligned -->
-<div class="position-fixed bottom-0 start-0 w-100 bg-light border-top py-2" style="z-index: 1000;">
+<div class="position-fixed bottom-0 start-0 w-100 bg-body-tertiary border-top border-secondary-subtle shadow-lg py-2" style="z-index: 1000;">
     <div class="text-center">
         <div class="mb-1">
             📊 <strong>Stats:</strong> 
@@ -103,7 +107,7 @@
             <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
             <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
         </div>
-        <div class="text-muted">
+        <div class="text-body-secondary">
             🕐 <strong>Last Update:</strong> <span id="lastUpdate">just now</span> | 
             <strong>Total Frames:</strong> <span id="totalFrames">--</span>
         </div>
@@ -159,10 +163,10 @@
                 </form>
             </div>
             <div class="modal-footer justify-content-center">
-                <button type="button" class="btn btn-outline-info" id="testConnection">
+                <button type="button" class="btn btn-info shadow-sm" id="testConnection">
                     🔗 Test Connection
                 </button>
-                <button type="button" class="btn btn-success" id="addCameraBtn">
+                <button type="button" class="btn btn-success shadow-sm" id="addCameraBtn">
                     ➕ Add Camera
                 </button>
             </div>
@@ -411,9 +415,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const bottomStats = document.querySelector('.position-fixed .text-center div:first-child');
                 bottomStats.innerHTML = `
                     📊 <strong>Stats:</strong> 
-                    <span class="badge bg-success me-1">${systemStatus.online_cameras} Online</span>
-                    <span class="badge bg-danger me-1">${systemStatus.offline_cameras} Offline</span>
-                    <span class="badge bg-warning me-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
+                    <span class="badge bg-success shadow-sm me-1">${systemStatus.online_cameras} Online</span>
+                    <span class="badge bg-danger shadow-sm me-1">${systemStatus.offline_cameras} Offline</span>
+                    <span class="badge bg-warning text-dark shadow-sm me-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
                 `;
                 
                 // Update total frames
