@@ -3,183 +3,76 @@
 {% block title %}Camera Feed - Flask App{% endblock %}
 
 {% block content %}
-<!-- Camera Feed Header -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <h1 class="display-6 mb-2">📹 Camera Feed Dashboard</h1>
-                <p class="text-muted mb-0">Monitor all your RTSP camera feeds</p>
-            </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addCameraModal">
-                    ➕ Add New Camera
-                </button>
-                <button class="btn btn-outline-primary">🔄 Refresh All</button>
-                <button class="btn btn-outline-secondary">⚙️ Settings</button>
-                <div class="d-flex align-items-center ms-3">
-                    <span class="badge bg-success me-1">3</span>
-                    <span class="text-muted">Online</span>
-                    <span class="mx-2">|</span>
-                    <span class="badge bg-danger me-1">1</span>
-                    <span class="text-muted">Offline</span>
-                    <span class="mx-2">|</span>
-                    <span class="badge bg-warning me-1">1</span>
-                    <span class="text-muted">Connecting</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- Camera Grid -->
 <div class="row g-4" id="cameraGrid">
-    <!-- Camera 1 - Front -->
+    {% for camera in cameras %}
     <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Camera 1 - Front</h5>
-                <span class="badge bg-light text-success">🟢 ONLINE</span>
+        <div class="card" data-camera-id="{{ camera.id }}">
+            <div class="card-header 
+                {% if camera.status == 'online' %}bg-success
+                {% elif camera.status == 'offline' %}bg-danger
+                {% else %}bg-warning
+                {% endif %} text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">{{ camera.name }}</h5>
+                <span class="badge bg-light 
+                    {% if camera.status == 'online' %}text-success">🟢 ONLINE
+                    {% elif camera.status == 'offline' %}text-danger">🔴 OFFLINE
+                    {% else %}text-warning">🟡 CONNECTING
+                    {% endif %}</span>
             </div>
             <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: #000;">
-                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                        <div class="text-center">
-                            <div class="mb-2" style="font-size: 2rem;">📺</div>
-                            <div>[LIVE FEED]</div>
-                            <div class="mt-2">🟢 STREAMING</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <small class="text-muted">RTSP: rtsp://192.168.1.100:554/stream</small>
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-warning me-1">⏸️ Pause</button>
-                        <button class="btn btn-sm btn-outline-info me-1">📷 Snap</button>
-                        <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Camera 2 - Backyard -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Camera 2 - Backyard</h5>
-                <span class="badge bg-light text-success">🟢 ONLINE</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: #000;">
-                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                        <div class="text-center">
-                            <div class="mb-2" style="font-size: 2rem;">📺</div>
-                            <div>[LIVE FEED]</div>
-                            <div class="mt-2">🟢 STREAMING</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <small class="text-muted">RTSP: rtsp://192.168.1.101:554/stream</small>
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-warning me-1">⏸️ Pause</button>
-                        <button class="btn btn-sm btn-outline-info me-1">📷 Snap</button>
-                        <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Camera 3 - Garage (Offline) -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Camera 3 - Garage</h5>
-                <span class="badge bg-light text-danger">🔴 OFFLINE</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: #333;">
-                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                        <div class="text-center">
-                            <div class="mb-2" style="font-size: 2rem;">📺</div>
-                            <div>[NO SIGNAL]</div>
-                            <div class="mt-2">🔴 OFFLINE</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <small class="text-muted">RTSP: rtsp://192.168.1.102:554/stream</small>
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-primary me-1">🔄 Retry</button>
-                        <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Camera 4 - Kitchen -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Camera 4 - Kitchen</h5>
-                <span class="badge bg-light text-success">🟢 ONLINE</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: #000;">
-                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                        <div class="text-center">
-                            <div class="mb-2" style="font-size: 2rem;">📺</div>
-                            <div>[LIVE FEED]</div>
-                            <div class="mt-2">🟢 STREAMING</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="p-3">
-                    <small class="text-muted">RTSP: rtsp://192.168.1.103:554/stream</small>
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-warning me-1">⏸️ Pause</button>
-                        <button class="btn btn-sm btn-outline-info me-1">📷 Snap</button>
-                        <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Camera 5 - Driveway (Connecting) -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card">
-            <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Camera 5 - Driveway</h5>
-                <span class="badge bg-light text-warning">🟡 CONNECTING</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: #666;">
-                    <div class="d-flex align-items-center justify-content-center h-100 text-white">
-                        <div class="text-center">
-                            <div class="mb-2">
-                                <div class="spinner-border" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
+                <div class="position-relative" style="height: 200px; background: {% if camera.status == 'online' %}#000{% elif camera.status == 'offline' %}#333{% else %}#666{% endif %};">
+                    {% if camera.status == 'online' %}
+                        <img src="/api/cameras/{{ camera.id }}/stream" 
+                             style="width: 100%; height: 200px; object-fit: cover;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                             alt="Live stream from {{ camera.name }}">
+                        <div class="d-none align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
+                            <div class="text-center">
+                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div>[STREAM ERROR]</div>
+                                <div class="mt-2">❌ FAILED</div>
                             </div>
-                            <div>[CONNECTING...]</div>
-                            <div class="mt-2">🟡 CONNECTING</div>
                         </div>
-                    </div>
+                    {% elif camera.status == 'offline' %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                            <div class="text-center">
+                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div>[NO SIGNAL]</div>
+                                <div class="mt-2">🔴 OFFLINE</div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                            <div class="text-center">
+                                <div class="mb-2">
+                                    <div class="spinner-border" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                <div>[CONNECTING...]</div>
+                                <div class="mt-2">🟡 CONNECTING</div>
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
                 <div class="p-3">
-                    <small class="text-muted">RTSP: rtsp://192.168.1.104:554/stream</small>
+                    <small class="text-muted">RTSP: {{ camera.rtsp_url }}</small>
                     <div class="mt-2">
-                        <button class="btn btn-sm btn-outline-primary me-1">🔄 Retry</button>
-                        <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
+                        {% if camera.status == 'online' %}
+                            <button class="btn btn-sm btn-outline-warning me-1">⏸️ Pause</button>
+                            <button class="btn btn-sm btn-outline-info me-1">📷 Snap</button>
+                            <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
+                        {% else %}
+                            <button class="btn btn-sm btn-outline-primary me-1">🔄 Retry</button>
+                            <button class="btn btn-sm btn-outline-danger">❌ Delete</button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    {% endfor %}
 
     <!-- Add New Camera Card -->
     <div class="col-lg-4 col-md-6">
@@ -206,9 +99,9 @@
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         📊 <strong>Stats:</strong> 
-                        <span class="badge bg-success me-2">3 Online</span>
-                        <span class="badge bg-danger me-2">1 Offline</span>
-                        <span class="badge bg-warning me-2">1 Connecting</span>
+                        <span class="badge bg-success me-2">{{ stats.online }} Online</span>
+                        <span class="badge bg-danger me-2">{{ stats.offline }} Offline</span>
+                        <span class="badge bg-warning me-2">{{ stats.connecting }} Connecting</span>
                     </div>
                     <div class="text-muted">
                         🕐 <strong>Last Update:</strong> <span id="lastUpdate">2 sec ago</span>
@@ -537,19 +430,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 connectingCount++;
             }
         });
-
-        // Update header stats
-        const headerStats = document.querySelector('.d-flex.align-items-center.ms-3');
-        headerStats.innerHTML = `
-            <span class="badge bg-success me-1">${onlineCount}</span>
-            <span class="text-muted">Online</span>
-            <span class="mx-2">|</span>
-            <span class="badge bg-danger me-1">${offlineCount}</span>
-            <span class="text-muted">Offline</span>
-            <span class="mx-2">|</span>
-            <span class="badge bg-warning me-1">${connectingCount}</span>
-            <span class="text-muted">Connecting</span>
-        `;
 
         // Update footer stats
         const footerStats = document.querySelector('.card.bg-light .d-flex.justify-content-between div:first-child');

@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 import time
 import random
+import cv2
 
 app = Flask(__name__)
 
@@ -157,23 +158,39 @@ def test_camera_connection():
                 'error': 'RTSP URL is required'
             }), 400
         
-        # Simulate connection test (replace with actual RTSP connection test)
-        import time
-        time.sleep(1)  # Simulate network delay
-        
-        # 70% success rate for demo
-        success = random.random() > 0.3
-        
-        if success:
-            return jsonify({
-                'success': True,
-                'message': 'Connection successful! Camera stream is accessible.',
-                'rtsp_url': rtsp_url
-            })
-        else:
+        # Real RTSP connection test using OpenCV
+        try:
+            cap = cv2.VideoCapture(rtsp_url)
+            
+            if not cap.isOpened():
+                cap.release()
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to open RTSP stream. Check URL and credentials.',
+                    'rtsp_url': rtsp_url
+                })
+            
+            # Try to read one frame to verify stream is working
+            ret, frame = cap.read()
+            cap.release()
+            
+            if ret and frame is not None:
+                return jsonify({
+                    'success': True,
+                    'message': 'Connection successful! Camera stream is accessible.',
+                    'rtsp_url': rtsp_url
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'RTSP stream opened but no frames received. Check stream format.',
+                    'rtsp_url': rtsp_url
+                })
+                
+        except Exception as e:
             return jsonify({
                 'success': False,
-                'error': 'Connection failed. Please check the RTSP URL and credentials.',
+                'error': f'Connection error: {str(e)}',
                 'rtsp_url': rtsp_url
             })
             
@@ -229,6 +246,86 @@ def update_camera_status(camera_id):
             'camera': camera,
             'message': f'Camera status updated to {new_status}'
         })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def get_camera_frame(rtsp_url):
+    """Get a single frame from RTSP camera"""
+    try:
+        cap = cv2.VideoCapture(rtsp_url)
+        
+        if not cap.isOpened():
+            cap.release()
+            return None
+        
+        ret, frame = cap.read()
+        cap.release()
+        
+        if ret and frame is not None:
+            # Convert BGR to RGB for web display
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Encode as JPEG
+            _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            return buffer.tobytes()
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error getting frame from {rtsp_url}: {e}")
+        return None
+
+def generate_video_stream(rtsp_url):
+    """Generate video stream from RTSP camera"""
+    cap = cv2.VideoCapture(rtsp_url)
+    
+    try:
+        while True:
+            if not cap.isOpened():
+                break
+                
+            ret, frame = cap.read()
+            
+            if not ret or frame is None:
+                break
+            
+            # Convert BGR to RGB for web display
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            
+            # Encode frame as JPEG
+            _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            
+            # Yield frame in multipart format
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                   
+    except Exception as e:
+        print(f"Error in video stream for {rtsp_url}: {e}")
+    finally:
+        if cap.isOpened():
+            cap.release()
+
+@app.route('/api/cameras/<int:camera_id>/stream')
+def stream_camera(camera_id):
+    """Stream video from RTSP camera"""
+    try:
+        # Find camera by ID
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        rtsp_url = camera['rtsp_url']
+        
+        return Response(
+            generate_video_stream(rtsp_url),
+            mimetype='multipart/x-mixed-replace; boundary=frame'
+        )
         
     except Exception as e:
         return jsonify({
