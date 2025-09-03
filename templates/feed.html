@@ -3,95 +3,76 @@
 {% block title %}Enhanced Camera Feed - Svl App{% endblock %}
 
 {% block content %}
+<!-- Add Camera Button -->
+<div class="mb-4">
+    <button class="btn btn-neutral" onclick="addCameraModal.showModal()">
+        Add Camera
+    </button>
+</div>
+
 <!-- Camera Grid -->
-<div class="row g-4 mb-5 pb-4" id="cameraGrid">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
-    <div class="col-lg-4 col-md-6">
-        <div class="card 
-                {% if camera.status == 'online' %}border-success
-                {% elif camera.status == 'offline' %}border-danger
-                {% elif camera.status == 'recording' %}border-info
-                {% else %}border-warning
-                {% endif %} mb-3 shadow" data-camera-id="{{ camera.id }}">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>{{ camera.name }}</span>
-                <button class="btn btn-outline-danger btn-sm delete-btn" 
+    <div>
+        <div class="card bg-base-100 shadow-sm" data-camera-id="{{ camera.id }}">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-4 border-b border-base-300">
+                <span class="font-medium">{{ camera.name }}</span>
+                <button class="btn btn-ghost btn-sm delete-btn" 
                         data-camera-id="{{ camera.id }}"
                         title="Delete Camera">
-                    🗑️
+                    ✕
                 </button>
             </div>
-            <div class="card-body">
-                <!-- Camera Stream -->
-                <div class="position-relative mb-3">
-                    <div class="ratio ratio-16x9" style="background: {% if camera.status == 'online' %}var(--bs-dark){% elif camera.status == 'offline' %}var(--bs-secondary-bg){% else %}var(--bs-tertiary-bg){% endif %};">
-                        {% if camera.status == 'online' or camera.status == 'recording' %}
-                            <img src="/api/cameras/{{ camera.id }}/stream" 
-                                 class="position-absolute top-0 start-0 w-100 h-100" 
-                                 style="object-fit: cover;"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                                 alt="Live stream from {{ camera.name }}">
-                            <div class="d-none align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
-                                <div class="text-center">
-                                    <div class="mb-3" style="font-size: 2.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">📺</div>
-                                    <div class="fs-5 fw-semibold mb-2" style="text-shadow: 0 1px 3px rgba(0,0,0,0.5);">[STREAM ERROR]</div>
-                                    <div class="badge bg-danger bg-opacity-90 px-3 py-2">❌ FAILED</div>
-                                </div>
+            
+            <!-- Video Area -->
+            <figure class="px-0">
+                <div class="aspect-video {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-200{% else %}bg-base-100{% endif %}">
+                    {% if camera.status == 'online' or camera.status == 'recording' %}
+                        <img src="/api/cameras/{{ camera.id }}/stream" 
+                             class="w-full h-full object-cover"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                             alt="Live stream from {{ camera.name }}">
+                        <div class="hidden items-center justify-center h-full text-base-content">
+                            <div class="text-center">
+                                <div class="text-4xl mb-2">📺</div>
+                                <div class="text-sm">Stream Error</div>
                             </div>
-                            
-                        {% elif camera.status == 'offline' %}
-                            <div class="d-flex align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
-                                <div class="text-center">
-                                    <div class="offline-icon" style="font-size: 3rem; filter: grayscale(100%) drop-shadow(0 2px 4px rgba(0,0,0,0.3));">📺</div>
-                                </div>
+                        </div>
+                        
+                    {% elif camera.status == 'offline' %}
+                        <div class="flex items-center justify-center h-full text-base-content">
+                            <div class="text-center">
+                                <div class="text-4xl mb-2">📺</div>
+                                <div class="text-sm">Offline</div>
                             </div>
-                        {% else %}
-                            <div class="d-flex align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
-                                <div class="text-center">
-                                    <div class="connecting-pulse" style="font-size: 3rem; color: #ffc107; filter: drop-shadow(0 2px 8px rgba(255,193,7,0.4));">●●●</div>
-                                </div>
+                        </div>
+                    {% else %}
+                        <div class="flex items-center justify-center h-full text-base-content">
+                            <div class="text-center">
+                                <div class="text-4xl mb-2">●●●</div>
+                                <div class="text-sm">Connecting</div>
                             </div>
-                        {% endif %}
-                    </div>
-                    
-                    <!-- FPS Overlay -->
-                    <div class="position-absolute bottom-0 end-0 m-2">
-                        <span class="badge bg-dark bg-opacity-75 text-white rounded-pill px-2 py-1" style="backdrop-filter: blur(8px);">
-                            <small>📊 <span class="camera-fps fw-semibold" data-camera-id="{{ camera.id }}">--</span> FPS</small>
-                        </span>
-                    </div>
+                        </div>
+                    {% endif %}
                 </div>
-
-            </div>
+            </figure>
         </div>
     </div>
     {% endfor %}
 
-    <!-- Add New Camera Card -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card border-primary border-dashed mb-3 shadow">
-            <div class="card-header">Add New Camera</div>
-            <div class="card-body text-center">
-                <h4 class="card-title">➕ New Camera</h4>
-                <p class="card-text">Click to add a new RTSP camera feed to your surveillance system.</p>
-                <button class="btn btn-primary shadow-sm" data-bs-toggle="modal" data-bs-target="#addCameraModal">
-                    Add Camera
-                </button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Enhanced Stats Bottom Aligned -->
-<div class="position-fixed bottom-0 start-0 w-100 bg-body-tertiary border-top border-secondary-subtle shadow-lg py-2" style="z-index: 1000;">
+<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 shadow-lg py-2 z-[1000]">
     <div class="text-center">
         <div class="mb-1">
             📊 <strong>Stats:</strong> 
-            <span class="badge bg-success me-1">{{ stats.online }} Online</span>
-            <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
-            <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
+            <span class="badge badge-success mr-1">{{ stats.online }} Online</span>
+            <span class="badge badge-error mr-1">{{ stats.offline }} Offline</span>
+            <span class="badge badge-warning mr-1">{{ stats.connecting }} Connecting</span>
         </div>
-        <div class="text-body-secondary">
+        <div class="text-base-content opacity-60">
             🕐 <strong>Last Update:</strong> <span id="lastUpdate">just now</span> | 
             <strong>Total Frames:</strong> <span id="totalFrames">--</span>
         </div>
@@ -99,54 +80,53 @@
 </div>
 
 <!-- Add Camera Modal -->
-<div class="modal fade" id="addCameraModal" tabindex="-1" aria-labelledby="addCameraModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h1 class="modal-title fs-5" id="addCameraModalLabel">➕ Add New Camera</h1>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+<dialog id="addCameraModal" class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+            <div class="bg-success text-white p-4 rounded-t">
+                <h1 class="text-lg font-bold" id="addCameraModalLabel">➕ Add New Camera</h1>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="addCameraModal.close()" aria-label="Close">✕</button>
             </div>
-            <div class="modal-body">
+            <div class="p-4">
                 <form id="addCameraForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="cameraName" class="form-label">Camera Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
-                            <div class="form-text">Enter a descriptive name for your camera</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label for="cameraName" class="label"><span class="label-text">Camera Name <span class="text-error">*</span></span></label>
+                            <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
+                            <div class="label"><span class="label-text-alt">Enter a descriptive name for your camera</span></div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="rtspUrl" class="form-label">RTSP URL <span class="text-danger">*</span></label>
-                            <input type="url" class="form-control" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
-                            <div class="form-text">Complete RTSP stream URL</div>
+                        <div class="form-control">
+                            <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
+                            <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
+                            <div class="label"><span class="label-text-alt">Complete RTSP stream URL</span></div>
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="admin">
-                            <div class="form-text">Camera authentication username (optional)</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label for="username" class="label"><span class="label-text">Username</span></label>
+                            <input type="text" class="input input-bordered w-full" id="username" name="username" placeholder="admin">
+                            <div class="label"><span class="label-text-alt">Camera authentication username (optional)</span></div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="••••••••">
-                            <div class="form-text">Camera authentication password (optional)</div>
+                        <div class="form-control">
+                            <label for="password" class="label"><span class="label-text">Password</span></label>
+                            <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
+                            <div class="label"><span class="label-text-alt">Camera authentication password (optional)</span></div>
                         </div>
                     </div>
 
 
                     <!-- Connection Test Status -->
-                    <div id="connectionStatus" class="alert alert-info d-none" role="alert">
-                        <div class="d-flex align-items-center">
-                            <div class="spinner-border spinner-border-sm me-2" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                    <div id="connectionStatus" class="alert alert-info hidden" role="alert">
+                        <div class="flex items-center">
+                            <div class="loading loading-spinner loading-sm mr-2" role="status">
+                                <span class="sr-only">Loading...</span>
                             </div>
                             Testing connection...
                         </div>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer justify-content-center">
+            <div class="modal-action justify-center">
                 <button type="button" class="btn btn-info shadow-sm" id="testConnection">
                     🔗 Test Connection
                 </button>
@@ -154,57 +134,9 @@
                     ➕ Add Camera
                 </button>
             </div>
-        </div>
     </div>
-</div>
+</dialog>
 
-
-<style>
-/* Enhanced Camera Feed Animations */
-.connecting-pulse {
-    animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { 
-        opacity: 0.6; 
-        transform: scale(1); 
-    }
-    50% { 
-        opacity: 1; 
-        transform: scale(1.1); 
-    }
-}
-
-.offline-icon {
-    animation: fade 4s ease-in-out infinite;
-}
-
-@keyframes fade {
-    0%, 100% { 
-        opacity: 0.3; 
-    }
-    50% { 
-        opacity: 0.5; 
-    }
-}
-
-
-/* Smooth transitions for all camera states */
-.ratio {
-    transition: all 0.3s ease;
-}
-
-.badge {
-    transition: all 0.2s ease;
-}
-
-.badge:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-}
-
-</style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -215,23 +147,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const cameraGrid = document.getElementById('cameraGrid');
     
     let updateInterval;
-    let fpsHistory = {}; // Store FPS history for smoothing
-
-    // FPS smoothing function for better user experience
-    function smoothFPS(cameraId, currentFPS) {
-        if (!fpsHistory[cameraId]) {
-            fpsHistory[cameraId] = [];
-        }
-        
-        fpsHistory[cameraId].push(currentFPS);
-        if (fpsHistory[cameraId].length > 5) {
-            fpsHistory[cameraId].shift(); // Keep last 5 readings
-        }
-        
-        // Return moving average
-        const avg = fpsHistory[cameraId].reduce((a, b) => a + b, 0) / fpsHistory[cameraId].length;
-        return Math.round(avg * 10) / 10; // Round to 1 decimal
-    }
 
     // Initialize real-time updates
     startRealTimeUpdates();
@@ -249,14 +164,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         connectionStatus.className = 'alert alert-info';
         connectionStatus.innerHTML = `
-            <div class="d-flex align-items-center">
-                <div class="spinner-border spinner-border-sm me-2" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="flex items-center">
+                <div class="loading loading-spinner loading-sm mr-2" role="status">
+                    <span class="sr-only">Loading...</span>
                 </div>
                 Testing connection to ${rtspUrl}...
             </div>
         `;
-        connectionStatus.classList.remove('d-none');
+        connectionStatus.classList.remove('hidden');
 
         try {
             const response = await fetch('/api/cameras/test-connection', {
@@ -276,26 +191,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.success) {
                 connectionStatus.className = 'alert alert-success';
                 connectionStatus.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="me-2">✅</span>
+                    <div class="flex items-center">
+                        <span class="mr-2">✅</span>
                         ${result.message}
                         ${result.frame_shape ? `<br><small>Frame resolution: ${result.frame_shape[1]}x${result.frame_shape[0]}</small>` : ''}
                     </div>
                 `;
             } else {
-                connectionStatus.className = 'alert alert-danger';
+                connectionStatus.className = 'alert alert-error';
                 connectionStatus.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="me-2">❌</span>
+                    <div class="flex items-center">
+                        <span class="mr-2">❌</span>
                         ${result.error}
                     </div>
                 `;
             }
         } catch (error) {
-            connectionStatus.className = 'alert alert-danger';
+            connectionStatus.className = 'alert alert-error';
             connectionStatus.innerHTML = `
-                <div class="d-flex align-items-center">
-                    <span class="me-2">❌</span>
+                <div class="flex items-center">
+                    <span class="mr-2">❌</span>
                     Network error: ${error.message}
                 </div>
             `;
@@ -333,10 +248,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.success) {
                 // Clear form and close modal
                 addCameraForm.reset();
-                connectionStatus.classList.add('d-none');
+                connectionStatus.classList.add('hidden');
                 
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addCameraModal'));
-                modal.hide();
+                document.getElementById('addCameraModal').close();
 
                 showNotification('Camera added successfully! Refreshing page...', 'success');
                 
@@ -368,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (result.success) {
                         showNotification('Camera deleted successfully!', 'success');
                         // Remove camera card
-                        const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`).closest('.col-lg-4');
+                        const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`).closest('div');
                         cameraCard.remove();
                         updateRealTimeStats();
                     } else {
@@ -396,35 +310,18 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.success) {
                 // Update bottom stats
                 const systemStatus = result.system_status;
-                const bottomStats = document.querySelector('.position-fixed .text-center div:first-child');
+                const bottomStats = document.querySelector('.fixed .text-center div:first-child');
                 bottomStats.innerHTML = `
                     📊 <strong>Stats:</strong> 
-                    <span class="badge bg-success shadow-sm me-1">${systemStatus.online_cameras} Online</span>
-                    <span class="badge bg-danger shadow-sm me-1">${systemStatus.offline_cameras} Offline</span>
-                    <span class="badge bg-warning text-dark shadow-sm me-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
+                    <span class="badge badge-success shadow-sm mr-1">${systemStatus.online_cameras} Online</span>
+                    <span class="badge badge-error shadow-sm mr-1">${systemStatus.offline_cameras} Offline</span>
+                    <span class="badge badge-warning shadow-sm mr-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
                 `;
                 
                 // Update total frames
                 document.getElementById('totalFrames').textContent = systemStatus.total_frames_captured.toLocaleString();
                 
-                // Update individual camera stats with FPS smoothing
-                const cameraStatuses = result.camera_statuses;
-                for (const [cameraId, status] of Object.entries(cameraStatuses)) {
-                    if (status) {
-                        const fpsElement = document.querySelector(`.camera-fps[data-camera-id="${cameraId}"]`);
-                        const framesElement = document.querySelector(`[data-camera-id="${cameraId}"] .frames-captured`);
-                        const connectionElement = document.querySelector(`[data-camera-id="${cameraId}"] .connection-status`);
-                        
-                        // Apply FPS smoothing for better user experience
-                        if (fpsElement) {
-                            const smoothedFPS = smoothFPS(cameraId, status.fps);
-                            fpsElement.textContent = smoothedFPS;
-                        }
-                        if (framesElement) framesElement.textContent = status.frames_captured.toLocaleString();
-                        if (connectionElement) connectionElement.textContent = status.status;
-                        
-                    }
-                }
+                // Camera statuses updated via bottom stats only
                 
                 // Update last update time
                 document.getElementById('lastUpdate').textContent = 'just now';
@@ -435,12 +332,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function showNotification(message, type) {
+        // Map Bootstrap types to DaisyUI types
+        const typeMap = {
+            'success': 'alert-success',
+            'danger': 'alert-error',
+            'warning': 'alert-warning',
+            'info': 'alert-info'
+        };
+        
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
-        alertDiv.style.zIndex = '9999';
+        alertDiv.className = `alert ${typeMap[type] || 'alert-info'} fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] max-w-md shadow-lg`;
         alertDiv.innerHTML = `
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="flex items-center justify-between">
+                <span>${message}</span>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.parentElement.remove()">✕</button>
+            </div>
         `;
         
         document.body.appendChild(alertDiv);

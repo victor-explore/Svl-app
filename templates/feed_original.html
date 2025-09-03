@@ -4,20 +4,20 @@
 
 {% block content %}
 <!-- Camera Grid -->
-<div class="row g-4 mb-5 pb-4" id="cameraGrid">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
-    <div class="col-lg-4 col-md-6">
-        <div class="card" data-camera-id="{{ camera.id }}">
+    <div>
+        <div class="card bg-base-100 shadow-xl" data-camera-id="{{ camera.id }}">
             <div class="card-header 
                 {% if camera.status == 'online' %}bg-success
-                {% elif camera.status == 'offline' %}bg-danger
+                {% elif camera.status == 'offline' %}bg-error
                 {% else %}bg-warning
-                {% endif %} text-white d-flex justify-content-between align-items-center">
+                {% endif %} text-white flex justify-between items-center">
                 <h5 class="mb-0">{{ camera.name }}</h5>
-                <span class="badge bg-light 
-                    {% if camera.status == 'online' %}text-success">🟢 ONLINE
-                    {% elif camera.status == 'offline' %}text-danger">🔴 OFFLINE
-                    {% else %}text-warning">🟡 CONNECTING
+                <span class="badge badge-neutral 
+                    {% if camera.status == 'online' %}!text-success">🟢 ONLINE
+                    {% elif camera.status == 'offline' %}!text-error">🔴 OFFLINE
+                    {% else %}!text-warning">🟡 CONNECTING
                     {% endif %}</span>
             </div>
             <div class="card-body p-0">
@@ -27,7 +27,7 @@
                              style="width: 100%; height: 200px; object-fit: cover;"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                              alt="Live stream from {{ camera.name }}">
-                        <div class="d-none align-items-center justify-content-center h-100 text-white position-absolute top-0 start-0 w-100">
+                        <div class="hidden items-center justify-center h-full text-white absolute top-0 left-0 w-full">
                             <div class="text-center">
                                 <div class="mb-2" style="font-size: 2rem;">📺</div>
                                 <div>[STREAM ERROR]</div>
@@ -35,7 +35,7 @@
                             </div>
                         </div>
                     {% elif camera.status == 'offline' %}
-                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div class="flex items-center justify-center h-full text-white">
                             <div class="text-center">
                                 <div class="mb-2" style="font-size: 2rem;">📺</div>
                                 <div>[NO SIGNAL]</div>
@@ -43,11 +43,11 @@
                             </div>
                         </div>
                     {% else %}
-                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                        <div class="flex items-center justify-center h-full text-white">
                             <div class="text-center">
                                 <div class="mb-2">
-                                    <div class="spinner-border" role="status">
-                                        <span class="visually-hidden">Loading...</span>
+                                    <div class="loading loading-spinner loading-lg" role="status">
+                                        <span class="sr-only">Loading...</span>
                                     </div>
                                 </div>
                                 <div>[CONNECTING...]</div>
@@ -64,14 +64,14 @@
     {% endfor %}
 
     <!-- Add New Camera Card -->
-    <div class="col-lg-4 col-md-6">
-        <div class="card border-2 border-dashed">
-            <div class="card-body text-center d-flex align-items-center justify-content-center" style="height: 300px;">
+    <div>
+        <div class="card bg-base-100 shadow-xl border-2 border-dashed border-base-300">
+            <div class="card-body text-center flex items-center justify-center" style="height: 300px;">
                 <div>
                     <div class="mb-3" style="font-size: 3rem; color: #6c757d;">➕</div>
                     <h5 class="text-muted mb-2">Add New Camera</h5>
                     <p class="text-muted small mb-3">Click to add a new RTSP camera feed</p>
-                    <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCameraModal">
+                    <button class="btn btn-outline btn-primary" onclick="addCameraModal.showModal()">
                         Add Camera
                     </button>
                 </div>
@@ -81,82 +81,80 @@
 </div>
 
 <!-- Stats Bottom Aligned -->
-<div class="position-fixed bottom-0 start-0 w-100 bg-light border-top py-2" style="z-index: 1000;">
+<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 py-2" style="z-index: 1000;">
     <div class="text-center">
         <div class="mb-1">
             📊 <strong>Stats:</strong> 
-            <span class="badge bg-success me-1">{{ stats.online }} Online</span>
-            <span class="badge bg-danger me-1">{{ stats.offline }} Offline</span>
-            <span class="badge bg-warning me-1">{{ stats.connecting }} Connecting</span>
+            <span class="badge badge-success mr-1">{{ stats.online }} Online</span>
+            <span class="badge badge-error mr-1">{{ stats.offline }} Offline</span>
+            <span class="badge badge-warning mr-1">{{ stats.connecting }} Connecting</span>
         </div>
-        <div class="text-muted">
+        <div class="text-base-content opacity-60">
             🕐 <strong>Last Update:</strong> <span id="lastUpdate">1 min ago</span>
         </div>
     </div>
 </div>
 
 <!-- Add Camera Modal -->
-<div class="modal fade" id="addCameraModal" tabindex="-1" aria-labelledby="addCameraModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h1 class="modal-title fs-5" id="addCameraModalLabel">➕ Add New Camera</h1>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+<dialog id="addCameraModal" class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+            <div class="flex justify-between items-center bg-success text-white p-4 -m-6 mb-4">
+                <h1 class="text-lg font-bold">➕ Add New Camera</h1>
+                <button type="button" class="btn btn-sm btn-circle btn-ghost text-white" onclick="addCameraModal.close()">✕</button>
             </div>
-            <div class="modal-body">
+            <div>
                 <form id="addCameraForm">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="cameraName" class="form-label">Camera Name <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
-                            <div class="form-text">Enter a descriptive name for your camera</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="mb-3">
+                            <label for="cameraName" class="label">Camera Name <span class="text-error">*</span></label>
+                            <input type="text" class="input input-bordered" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
+                            <div class="text-sm text-base-content opacity-60 mt-1">Enter a descriptive name for your camera</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="rtspUrl" class="form-label">RTSP URL <span class="text-danger">*</span></label>
-                            <input type="url" class="form-control" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
-                            <div class="form-text">Complete RTSP stream URL</div>
+                        <div class="mb-3">
+                            <label for="rtspUrl" class="label">RTSP URL <span class="text-error">*</span></label>
+                            <input type="url" class="input input-bordered" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
+                            <div class="text-sm text-base-content opacity-60 mt-1">Complete RTSP stream URL</div>
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="admin">
-                            <div class="form-text">Camera authentication username (optional)</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="mb-3">
+                            <label for="username" class="label">Username</label>
+                            <input type="text" class="input input-bordered" id="username" name="username" placeholder="admin">
+                            <div class="text-sm text-base-content opacity-60 mt-1">Camera authentication username (optional)</div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="password" class="form-label">Password</label>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="••••••••">
-                            <div class="form-text">Camera authentication password (optional)</div>
+                        <div class="mb-3">
+                            <label for="password" class="label">Password</label>
+                            <input type="password" class="input input-bordered" id="password" name="password" placeholder="••••••••">
+                            <div class="text-sm text-base-content opacity-60 mt-1">Camera authentication password (optional)</div>
                         </div>
                     </div>
 
 
                     <!-- Connection Test Status -->
-                    <div id="connectionStatus" class="alert alert-info d-none" role="alert">
-                        <div class="d-flex align-items-center">
-                            <div class="spinner-border spinner-border-sm me-2" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                    <div id="connectionStatus" class="alert alert-info hidden" role="alert">
+                        <div class="flex items-center">
+                            <div class="loading loading-spinner loading-sm mr-2" role="status">
+                                <span class="sr-only">Loading...</span>
                             </div>
                             Testing connection...
                         </div>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer justify-content-center">
-                <button type="button" class="btn btn-outline-info" id="testConnection">
+            <div class="modal-action justify-center">
+                <button type="button" class="btn btn-outline btn-info" id="testConnection">
                     🔗 Test Connection
                 </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <button type="button" class="btn" onclick="addCameraModal.close()">
                     Cancel
                 </button>
                 <button type="button" class="btn btn-success" id="addCameraBtn">
                     ➕ Add Camera
                 </button>
             </div>
-        </div>
     </div>
-</div>
+</dialog>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -180,14 +178,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show loading status
         connectionStatus.className = 'alert alert-info';
         connectionStatus.innerHTML = `
-            <div class="d-flex align-items-center">
-                <div class="spinner-border spinner-border-sm me-2" role="status">
-                    <span class="visually-hidden">Loading...</span>
+            <div class="flex items-center">
+                <div class="loading loading-spinner loading-sm mr-2" role="status">
+                    <span class="sr-only">Loading...</span>
                 </div>
                 Testing connection to ${rtspUrl}...
             </div>
         `;
-        connectionStatus.classList.remove('d-none');
+        connectionStatus.classList.remove('hidden');
 
         // Simulate connection test (replace with actual RTSP test)
         setTimeout(() => {
@@ -196,16 +194,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (isSuccess) {
                 connectionStatus.className = 'alert alert-success';
                 connectionStatus.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="me-2">✅</span>
+                    <div class="flex items-center">
+                        <span class="mr-2">✅</span>
                         Connection successful! Camera stream is accessible.
                     </div>
                 `;
             } else {
-                connectionStatus.className = 'alert alert-danger';
+                connectionStatus.className = 'alert alert-error';
                 connectionStatus.innerHTML = `
-                    <div class="d-flex align-items-center">
-                        <span class="me-2">❌</span>
+                    <div class="flex items-center">
+                        <span class="mr-2">❌</span>
                         Connection failed. Please check the RTSP URL and credentials.
                     </div>
                 `;
@@ -239,12 +237,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Clear form and close modal
         addCameraForm.reset();
-        document.getElementById('autoStart').checked = true; // Reset to default
-        connectionStatus.classList.add('d-none');
+        connectionStatus.classList.add('hidden');
         
         // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('addCameraModal'));
-        modal.hide();
+        document.getElementById('addCameraModal').close();
 
         // Update stats
         updateStats();
@@ -255,20 +251,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function createCameraCard(id, name, rtspUrl, autoStart) {
         const col = document.createElement('div');
-        col.className = 'col-lg-4 col-md-6';
+        col.className = '';
         
         const status = autoStart ? 'connecting' : 'offline';
         const statusInfo = getStatusInfo(status);
         
         col.innerHTML = `
-            <div class="card" data-camera-id="${id}">
-                <div class="card-header ${statusInfo.headerClass} text-white d-flex justify-content-between align-items-center">
+            <div class="card bg-base-100 shadow-xl" data-camera-id="${id}">
+                <div class="card-header ${statusInfo.headerClass} text-white flex justify-between items-center">
                     <h5 class="mb-0">${name}</h5>
-                    <span class="badge bg-light ${statusInfo.badgeClass}">${statusInfo.statusText}</span>
+                    <span class="badge badge-neutral ${statusInfo.badgeClass}">${statusInfo.statusText}</span>
                 </div>
                 <div class="card-body p-0">
-                    <div class="position-relative" style="height: 200px; background: ${statusInfo.bgColor};">
-                        <div class="d-flex align-items-center justify-content-center h-100 text-white">
+                    <div class="relative" style="height: 200px; background: ${statusInfo.bgColor};">
+                        <div class="flex items-center justify-center h-full text-white">
                             <div class="text-center">
                                 ${statusInfo.content}
                             </div>
@@ -298,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'online':
                 return {
                     headerClass: 'bg-success',
-                    badgeClass: 'text-success',
+                    badgeClass: '!text-success',
                     statusText: '🟢 ONLINE',
                     bgColor: '#000',
                     content: `
@@ -310,8 +306,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             case 'offline':
                 return {
-                    headerClass: 'bg-danger',
-                    badgeClass: 'text-danger',
+                    headerClass: 'bg-error',
+                    badgeClass: '!text-error',
                     statusText: '🔴 OFFLINE',
                     bgColor: '#333',
                     content: `
@@ -324,13 +320,13 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'connecting':
                 return {
                     headerClass: 'bg-warning',
-                    badgeClass: 'text-warning',
+                    badgeClass: '!text-warning',
                     statusText: '🟡 CONNECTING',
                     bgColor: '#666',
                     content: `
                         <div class="mb-2">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden">Loading...</span>
+                            <div class="loading loading-spinner loading-lg" role="status">
+                                <span class="sr-only">Loading...</span>
                             </div>
                         </div>
                         <div>[CONNECTING...]</div>
@@ -349,10 +345,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const buttonsArea = cardElement.querySelector('.mt-2');
 
         // Update header class
-        header.className = `card-header ${statusInfo.headerClass} text-white d-flex justify-content-between align-items-center`;
+        header.className = `card-header ${statusInfo.headerClass} text-white flex justify-between items-center`;
         
         // Update status badge
-        statusBadge.className = `badge bg-light ${statusInfo.badgeClass}`;
+        statusBadge.className = `badge badge-neutral ${statusInfo.badgeClass}`;
         statusBadge.textContent = statusInfo.statusText;
         
         // Update feed area
@@ -381,12 +377,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         // Update bottom stats
-        const bottomStats = document.querySelector('.position-fixed .text-center div:first-child');
+        const bottomStats = document.querySelector('.fixed .text-center div:first-child');
         bottomStats.innerHTML = `
             📊 <strong>Stats:</strong> 
-            <span class="badge bg-success me-1">${onlineCount} Online</span>
-            <span class="badge bg-danger me-1">${offlineCount} Offline</span>
-            <span class="badge bg-warning me-1">${connectingCount} Connecting</span>
+            <span class="badge badge-success mr-1">${onlineCount} Online</span>
+            <span class="badge badge-error mr-1">${offlineCount} Offline</span>
+            <span class="badge badge-warning mr-1">${connectingCount} Connecting</span>
         `;
 
         // Update last update time
@@ -395,11 +391,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showNotification(message, type) {
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3`;
+        alertDiv.className = `alert alert-${type} fixed top-0 left-1/2 transform -translate-x-1/2 mt-3`;
         alertDiv.style.zIndex = '9999';
         alertDiv.innerHTML = `
             ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button>
         `;
         
         document.body.appendChild(alertDiv);
