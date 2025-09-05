@@ -92,7 +92,19 @@ initialize_cameras()
 
 @app.route('/')
 def home():
-    return render_template('home.html')
+    # Update camera statuses from camera manager
+    for camera in cameras:
+        camera_status = camera_manager.get_camera_status(camera['id'])
+        if camera_status:
+            camera['status'] = camera_status['status']
+    
+    # Count cameras by status
+    stats = {
+        'online': len([c for c in cameras if c['status'] == 'online']),
+        'offline': len([c for c in cameras if c['status'] == 'offline']),
+        'connecting': len([c for c in cameras if c['status'] == 'connecting'])
+    }
+    return render_template('feed.html', cameras=cameras, stats=stats)
 
 @app.route('/feed')
 def feed():

@@ -14,7 +14,7 @@
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
     <div>
-        <div class="card bg-base-100 shadow-sm" data-camera-id="{{ camera.id }}">
+        <div class="card bg-base-100 shadow-sm border border-base-300" data-camera-id="{{ camera.id }}">
             <!-- Header -->
             <div class="flex justify-between items-center p-4 border-b border-base-300">
                 <span class="font-medium">{{ camera.name }}</span>
