@@ -26,14 +26,14 @@
             </div>
             
             <!-- Video Area -->
-            <figure class="px-0">
-                <div class="aspect-video {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-200{% else %}bg-base-100{% endif %}">
+            <figure class="h-48 w-full {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-100{% else %}bg-base-100{% endif %}">
+                <div class="h-full w-full relative">
                     {% if camera.status == 'online' or camera.status == 'recording' %}
                         <img src="/api/cameras/{{ camera.id }}/stream" 
                              class="w-full h-full object-cover"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                              alt="Live stream from {{ camera.name }}">
-                        <div class="hidden items-center justify-center h-full text-base-content">
+                        <div class="hidden items-center justify-center h-full w-full text-base-content">
                             <div class="text-center">
                                 <div class="text-4xl mb-2">📺</div>
                                 <div class="text-sm">Stream Error</div>
@@ -41,14 +41,14 @@
                         </div>
                         
                     {% elif camera.status == 'offline' %}
-                        <div class="flex items-center justify-center h-full text-base-content">
+                        <div class="flex items-center justify-center h-full w-full text-base-content">
                             <div class="text-center">
                                 <div class="text-4xl mb-2">📺</div>
                                 <div class="text-sm">Offline</div>
                             </div>
                         </div>
                     {% else %}
-                        <div class="flex items-center justify-center h-full text-base-content">
+                        <div class="flex items-center justify-center h-full w-full text-base-content">
                             <div class="text-center">
                                 <div class="text-4xl mb-2">●●●</div>
                                 <div class="text-sm">Connecting</div>
