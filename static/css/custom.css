@@ -1,0 +1,34 @@
+/* Custom styles for Svl App */
+
+/* Left align submenu items */
+.menu details ul {
+    padding-left: 0;
+}
+
+.menu details ul li a {
+    padding-left: 1rem;
+}
+
+/* Camera Grid Smooth Animations */
+#cameraGrid {
+    transition: all 0.3s ease;
+}
+
+#cameraGrid > div {
+    transition: all 0.3s ease;
+}
+
+/* Camera deletion animation */
+.camera-deleting {
+    opacity: 0.5;
+    transform: scale(0.95);
+    filter: grayscale(50%);
+    transition: all 0.3s ease;
+}
+
+.camera-removing {
+    opacity: 0;
+    transform: scale(0.8);
+    transition: all 0.3s ease;
+}
+

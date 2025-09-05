@@ -16,21 +16,16 @@ FRAME_QUEUE_SIZE = 10                      # Maximum frames to buffer per camera
 PROCESSING_FPS = 25                        # Target FPS for frame processing (increased from 10 for smoother streams)
 JPEG_QUALITY = 70                          # JPEG compression quality for web streaming (reduced from 80 for faster encoding)
 
-# Recording Settings
-RECORDINGS_DIR = "recordings"              # Directory to store recordings
-SEGMENT_DURATION = 60                      # Duration of each recording segment in seconds
-RECORDING_AUTO_START = False               # Whether to auto-start recording for new cameras
-
-# FFmpeg Recording Settings
-FFMPEG_LOGLEVEL = "warning"                # FFmpeg log level (quiet, error, warning, info, debug)
-FFMPEG_STIMEOUT = 3000000                  # Stream timeout for FFmpeg (microseconds)
-FFMPEG_RECONNECT = True                    # Enable FFmpeg automatic reconnection
-FFMPEG_RECONNECT_DELAY_MAX = 5             # Maximum reconnection delay for FFmpeg
 
 # Performance Settings
 MAX_CAMERAS = 20                           # Maximum number of cameras supported
 THREAD_CLEANUP_TIMEOUT = 5                 # Timeout for thread cleanup in seconds
 STATUS_UPDATE_INTERVAL = 2                 # Interval for status updates in seconds
+
+# Camera Deletion Settings - Senior Developer Optimistic Approach
+DELETE_STRATEGY = "optimistic"             # "optimistic" for immediate UI response, "synchronous" for blocking
+CLEANUP_TIMEOUT_PROGRESSIVE = [1, 2, 0]    # Progressive timeouts: [graceful, terminate, force_kill]
+SHOW_DELETION_FEEDBACK_MS = 300            # Brief "deleting" state duration in milliseconds
 
 # Web Interface Settings
 FLASK_HOST = "0.0.0.0"
@@ -41,7 +36,6 @@ FLASK_DEBUG = True
 CAMERA_STATUS_ONLINE = "online"
 CAMERA_STATUS_OFFLINE = "offline"
 CAMERA_STATUS_CONNECTING = "connecting"
-CAMERA_STATUS_RECORDING = "recording"
 CAMERA_STATUS_ERROR = "error"
 
 # Default camera template for new cameras
@@ -50,15 +44,12 @@ DEFAULT_CAMERA_CONFIG = {
     'password': '',
     'status': CAMERA_STATUS_CONNECTING,
     'auto_start': True,
-    'record_footage': False,
-    'recording_status': 'stopped'
 }
 
 # Error messages
 ERROR_MESSAGES = {
     'connection_failed': 'Failed to connect to RTSP stream',
     'no_frames': 'RTSP stream opened but no frames received',
-    'ffmpeg_error': 'FFmpeg recording error',
     'invalid_url': 'Invalid RTSP URL format',
     'timeout': 'Connection timeout exceeded'
 }

@@ -3,12 +3,6 @@
 {% block title %}Enhanced Camera Feed - Svl App{% endblock %}
 
 {% block content %}
-<!-- Add Camera Button -->
-<div class="mb-4">
-    <button class="btn btn-neutral" onclick="addCameraModal.showModal()">
-        Add Camera
-    </button>
-</div>
 
 <!-- Camera Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5 pb-4" id="cameraGrid">
@@ -16,7 +10,7 @@
     <div>
         <div class="card bg-base-100 shadow-sm border border-base-300" data-camera-id="{{ camera.id }}">
             <!-- Header -->
-            <div class="flex justify-between items-center p-4 border-b border-base-300">
+            <div class="flex justify-between items-center py-2 pr-2 pl-4 border-b border-base-300">
                 <span class="font-medium">{{ camera.name }}</span>
                 <button class="btn btn-ghost btn-sm delete-btn" 
                         data-camera-id="{{ camera.id }}"
@@ -28,7 +22,7 @@
             <!-- Video Area -->
             <figure class="h-48 w-full {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-100{% else %}bg-base-100{% endif %}">
                 <div class="h-full w-full relative">
-                    {% if camera.status == 'online' or camera.status == 'recording' %}
+                    {% if camera.status == 'online' %}
                         <img src="/api/cameras/{{ camera.id }}/stream" 
                              class="w-full h-full object-cover"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
@@ -43,15 +37,15 @@
                     {% elif camera.status == 'offline' %}
                         <div class="flex items-center justify-center h-full w-full text-base-content">
                             <div class="text-center">
-                                <div class="text-4xl mb-2">📺</div>
-                                <div class="text-sm">Offline</div>
+                                <span class="loading loading-dots loading-xl"></span>
+                                <div class="text-sm mt-2">Offline</div>
                             </div>
                         </div>
                     {% else %}
                         <div class="flex items-center justify-center h-full w-full text-base-content">
                             <div class="text-center">
-                                <div class="text-4xl mb-2">●●●</div>
-                                <div class="text-sm">Connecting</div>
+                                <span class="loading loading-spinner loading-xl"></span>
+                                <div class="text-sm mt-2">Connecting</div>
                             </div>
                         </div>
                     {% endif %}
@@ -63,73 +57,11 @@
 
 </div>
 
-<!-- Enhanced Stats Bottom Aligned -->
-<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 shadow-lg py-2 z-50">
-    <div class="text-center">
-        <div class="mb-1">
-            📊 <strong>Stats:</strong> 
-            <span class="badge badge-success mr-1">{{ stats.online }} Online</span>
-            <span class="badge badge-error mr-1">{{ stats.offline }} Offline</span>
-            <span class="badge badge-warning mr-1">{{ stats.connecting }} Connecting</span>
-        </div>
-        <div class="text-base-content opacity-60">
-            🕐 <strong>Last Update:</strong> <span id="lastUpdate">just now</span> | 
-            <strong>Total Frames:</strong> <span id="totalFrames">--</span>
-        </div>
-    </div>
-</div>
 
-<!-- Add Camera Modal -->
-<dialog id="addCameraModal" class="modal">
-    <div class="modal-box w-11/12 max-w-none">
-        <h3 class="font-bold text-lg mb-4">Add New Camera</h3>
-                <form id="addCameraForm">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label for="cameraName" class="label"><span class="label-text">Camera Name <span class="text-error">*</span></span></label>
-                            <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., UAV Feed, LORROS Feed" required>
-                        </div>
-                        <div class="form-control">
-                            <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
-                            <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="form-control">
-                            <label for="username" class="label"><span class="label-text">Username</span></label>
-                            <input type="text" class="input input-bordered w-full" id="username" name="username" placeholder="admin">
-                        </div>
-                        <div class="form-control">
-                            <label for="password" class="label"><span class="label-text">Password</span></label>
-                            <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
-                        </div>
-                    </div>
-
-
-                    <!-- Connection Test Status -->
-                    <div id="connectionStatus" class="hidden" style="margin-top: 1.5rem;" role="alert"></div>
-                </form>
-                
-                <div class="modal-action">
-                    <button type="button" class="btn" onclick="document.getElementById('addCameraModal').close()">Close</button>
-                    <button type="button" class="btn" id="testConnection">
-                        Test Connection
-                    </button>
-                    <button type="button" class="btn btn-neutral" id="addCameraBtn">
-                        Add Camera
-                    </button>
-                </div>
-    </div>
-</dialog>
 
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const testConnectionBtn = document.getElementById('testConnection');
-    const addCameraBtn = document.getElementById('addCameraBtn');
-    const connectionStatus = document.getElementById('connectionStatus');
-    const addCameraForm = document.getElementById('addCameraForm');
     const cameraGrid = document.getElementById('cameraGrid');
     
     let updateInterval;
@@ -137,147 +69,91 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize real-time updates
     startRealTimeUpdates();
 
-    // Test Connection functionality with enhanced API
-    testConnectionBtn.addEventListener('click', async function() {
-        const rtspUrl = document.getElementById('rtspUrl').value.trim();
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value.trim();
-
-        if (!rtspUrl) {
-            alert('Please enter an RTSP URL first.');
-            return;
-        }
-
-        connectionStatus.className = 'alert alert-info';
-        connectionStatus.innerHTML = `
-            <div class="flex items-center">
-                <div class="loading loading-spinner loading-sm mr-2" role="status">
-                    <span class="sr-only">Loading...</span>
-                </div>
-                Testing connection to ${rtspUrl}...
-            </div>
-        `;
-        connectionStatus.classList.remove('hidden');
-
-        try {
-            const response = await fetch('/api/cameras/test-connection', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    rtsp_url: rtspUrl,
-                    username: username,
-                    password: password
-                })
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                connectionStatus.className = 'alert alert-success';
-                connectionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        <span class="mr-2">✅</span>
-                        ${result.message}
-                        ${result.frame_shape ? `<br><small>Frame resolution: ${result.frame_shape[1]}x${result.frame_shape[0]}</small>` : ''}
-                    </div>
-                `;
-            } else {
-                connectionStatus.className = 'alert alert-error';
-                connectionStatus.innerHTML = `
-                    <div class="flex items-center">
-                        ${result.error}
-                    </div>
-                `;
-            }
-        } catch (error) {
-            connectionStatus.className = 'alert alert-error';
-            connectionStatus.innerHTML = `
-                <div class="flex items-center">
-                    Network error: ${error.message}
-                </div>
-            `;
-        }
-    });
-
-    // Enhanced Add Camera functionality
-    addCameraBtn.addEventListener('click', async function() {
-        const formData = new FormData(addCameraForm);
-        const cameraData = {
-            name: formData.get('cameraName').trim(),
-            rtsp_url: formData.get('rtspUrl').trim(),
-            username: formData.get('username').trim(),
-            password: formData.get('password').trim(),
-            auto_start: true,
-            record_footage: false
-        };
-
-        if (!cameraData.name || !cameraData.rtsp_url) {
-            alert('Please fill in all required fields (Camera Name and RTSP URL).');
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/cameras', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(cameraData)
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                // Clear form and close modal
-                addCameraForm.reset();
-                connectionStatus.classList.add('hidden');
-                
-                document.getElementById('addCameraModal').close();
-
-                showNotification('Camera added successfully! Refreshing page...', 'success');
-                
-                // Refresh page to show new camera
-                setTimeout(() => location.reload(), 1500);
-            } else {
-                showNotification(`Error: ${result.error}`, 'danger');
-            }
-        } catch (error) {
-            showNotification(`Network error: ${error.message}`, 'danger');
-        }
-    });
 
 
 
-    // Delete button functionality
+    // Track cameras being deleted to prevent double deletion
+    let deletingCameras = new Set();
+
+    // Delete button functionality - Senior Developer Optimistic UI
     document.addEventListener('click', async function(e) {
         if (e.target.classList.contains('delete-btn')) {
+            e.preventDefault(); // Prevent any default behavior
+            e.stopPropagation(); // Stop event bubbling
+            
             const cameraId = e.target.getAttribute('data-camera-id');
             
-            if (confirm('Are you sure you want to delete this camera?')) {
-                try {
-                    const response = await fetch(`/api/cameras/${cameraId}`, {
-                        method: 'DELETE'
-                    });
+            // Prevent double deletion
+            if (deletingCameras.has(cameraId)) {
+                console.log(`Camera ${cameraId} already being deleted, ignoring click`);
+                return;
+            }
+            
+            // Mark as being deleted
+            deletingCameras.add(cameraId);
+            console.log(`Starting deletion for camera ${cameraId}`);
+            
+            const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`);
+            const cameraContainer = cameraCard.closest('div');
+            
+            // Get camera name for feedback
+            const cameraName = cameraCard.querySelector('.font-medium').textContent;
+            
+            // 1. Immediate UI feedback - show deleting state
+            showDeletingState(cameraCard, cameraName);
+            
+            try {
+                const response = await fetch(`/api/cameras/${cameraId}`, {
+                    method: 'DELETE'
+                });
 
-                    const result = await response.json();
+                const result = await response.json();
+                console.log(`Delete response for camera ${cameraId}:`, result);
+                
+                if (result.success) {
+                    // 2. Simple page refresh for consistent behavior (same as add camera)
+                    console.log(`Successfully deleted camera ${cameraId}, refreshing page`);
+                    setTimeout(() => location.reload(), 300);
                     
-                    if (result.success) {
-                        showNotification('Camera deleted successfully!', 'success');
-                        // Remove camera card
-                        const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`).closest('div');
-                        cameraCard.remove();
-                        updateRealTimeStats();
-                    } else {
-                        showNotification(`Error: ${result.error}`, 'danger');
-                    }
-                } catch (error) {
-                    showNotification(`Network error: ${error.message}`, 'danger');
+                } else {
+                    // Remove from deleting set and restore camera
+                    deletingCameras.delete(cameraId);
+                    restoreCameraCard(cameraCard);
+                    showNotification(`Error: ${result.error}`, 'danger');
                 }
+            } catch (error) {
+                // Remove from deleting set and restore camera
+                deletingCameras.delete(cameraId);
+                restoreCameraCard(cameraCard);
+                showNotification(`Network error: ${error.message}`, 'danger');
             }
         }
     });
+
+    function showDeletingState(cameraCard, cameraName) {
+        // Disable ALL delete buttons to prevent rapid clicking
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+        });
+        
+        // Update specific camera header
+        const headerSpan = cameraCard.querySelector('.font-medium');
+        headerSpan.textContent = `${cameraName} - Deleting...`;
+        headerSpan.style.opacity = '0.7';
+    }
+
+    function restoreCameraCard(cameraCard) {
+        // Restore camera card to original state if deletion fails
+        const deleteBtn = cameraCard.querySelector('.delete-btn');
+        deleteBtn.disabled = false;
+        deleteBtn.style.opacity = '1';
+        
+        const headerSpan = cameraCard.querySelector('.font-medium');
+        const originalName = headerSpan.textContent.replace(' - Deleting...', '');
+        headerSpan.textContent = originalName;
+        headerSpan.style.opacity = '1';
+    }
 
 
 
@@ -292,23 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             
             if (result.success) {
-                // Update bottom stats
-                const systemStatus = result.system_status;
-                const bottomStats = document.querySelector('.fixed .text-center div:first-child');
-                bottomStats.innerHTML = `
-                    📊 <strong>Stats:</strong> 
-                    <span class="badge badge-success mr-1">${systemStatus.online_cameras} Online</span>
-                    <span class="badge badge-error mr-1">${systemStatus.offline_cameras} Offline</span>
-                    <span class="badge badge-warning mr-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
-                `;
-                
-                // Update total frames
-                document.getElementById('totalFrames').textContent = systemStatus.total_frames_captured.toLocaleString();
-                
-                // Camera statuses updated via bottom stats only
-                
-                // Update last update time
-                document.getElementById('lastUpdate').textContent = 'just now';
+                // Footer removed - no stats to update
             }
         } catch (error) {
             console.error('Error updating real-time stats:', error);
