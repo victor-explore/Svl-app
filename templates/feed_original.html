@@ -8,12 +8,12 @@
     {% for camera in cameras %}
     <div>
         <div class="card bg-base-100 shadow-xl" data-camera-id="{{ camera.id }}">
-            <div class="card-header 
-                {% if camera.status == 'online' %}bg-success
-                {% elif camera.status == 'offline' %}bg-error
-                {% else %}bg-warning
-                {% endif %} text-white flex justify-between items-center">
-                <h5 class="mb-0">{{ camera.name }}</h5>
+            <div class="flex justify-between items-center p-4 border-b border-base-300
+                {% if camera.status == 'online' %} bg-success text-white
+                {% elif camera.status == 'offline' %} bg-error text-white
+                {% else %} bg-warning text-white
+                {% endif %}">
+                <h5 class="font-medium">{{ camera.name }}</h5>
                 <span class="badge badge-neutral 
                     {% if camera.status == 'online' %}!text-success">🟢 ONLINE
                     {% elif camera.status == 'offline' %}!text-error">🔴 OFFLINE
@@ -21,15 +21,15 @@
                     {% endif %}</span>
             </div>
             <div class="card-body p-0">
-                <div class="position-relative" style="height: 200px; background: {% if camera.status == 'online' %}#000{% elif camera.status == 'offline' %}#333{% else %}#666{% endif %};">
+                <div class="relative h-48 w-full {% if camera.status == 'online' %}bg-black{% elif camera.status == 'offline' %}bg-gray-800{% else %}bg-gray-600{% endif %}">
                     {% if camera.status == 'online' %}
                         <img src="/api/cameras/{{ camera.id }}/stream" 
-                             style="width: 100%; height: 200px; object-fit: cover;"
+                             class="w-full h-48 object-cover">
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
                              alt="Live stream from {{ camera.name }}">
                         <div class="hidden items-center justify-center h-full text-white absolute top-0 left-0 w-full">
                             <div class="text-center">
-                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div class="text-4xl mb-2">📺</div>
                                 <div>[STREAM ERROR]</div>
                                 <div class="mt-2">❌ FAILED</div>
                             </div>
@@ -37,7 +37,7 @@
                     {% elif camera.status == 'offline' %}
                         <div class="flex items-center justify-center h-full text-white">
                             <div class="text-center">
-                                <div class="mb-2" style="font-size: 2rem;">📺</div>
+                                <div class="text-4xl mb-2">📺</div>
                                 <div>[NO SIGNAL]</div>
                                 <div class="mt-2">🔴 OFFLINE</div>
                             </div>
@@ -66,9 +66,9 @@
     <!-- Add New Camera Card -->
     <div>
         <div class="card bg-base-100 shadow-xl border-2 border-dashed border-base-300">
-            <div class="card-body text-center flex items-center justify-center" style="height: 300px;">
+            <div class="card-body text-center flex items-center justify-center h-72">
                 <div>
-                    <div class="mb-3" style="font-size: 3rem; color: #6c757d;">➕</div>
+                    <div class="text-5xl mb-3 text-base-content opacity-60">➕</div>
                     <h5 class="text-muted mb-2">Add New Camera</h5>
                     <p class="text-muted small mb-3">Click to add a new RTSP camera feed</p>
                     <button class="btn btn-outline btn-primary" onclick="addCameraModal.showModal()">
@@ -81,7 +81,7 @@
 </div>
 
 <!-- Stats Bottom Aligned -->
-<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 py-2" style="z-index: 1000;">
+<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 py-2 z-50">
     <div class="text-center">
         <div class="mb-1">
             📊 <strong>Stats:</strong> 
@@ -258,12 +258,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         col.innerHTML = `
             <div class="card bg-base-100 shadow-xl" data-camera-id="${id}">
-                <div class="card-header ${statusInfo.headerClass} text-white flex justify-between items-center">
-                    <h5 class="mb-0">${name}</h5>
+                <div class="flex justify-between items-center p-4 border-b border-base-300 ${statusInfo.headerClass} text-white">
+                    <h5 class="font-medium">${name}</h5>
                     <span class="badge badge-neutral ${statusInfo.badgeClass}">${statusInfo.statusText}</span>
                 </div>
                 <div class="card-body p-0">
-                    <div class="relative" style="height: 200px; background: ${statusInfo.bgColor};">
+                    <div class="relative h-48 w-full ${statusInfo.bgClass}">
                         <div class="flex items-center justify-center h-full text-white">
                             <div class="text-center">
                                 ${statusInfo.content}
@@ -296,9 +296,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     headerClass: 'bg-success',
                     badgeClass: '!text-success',
                     statusText: '🟢 ONLINE',
-                    bgColor: '#000',
+                    bgClass: 'bg-black',
                     content: `
-                        <div class="mb-2" style="font-size: 2rem;">📺</div>
+                        <div class="text-4xl mb-2">📺</div>
                         <div>[LIVE FEED]</div>
                         <div class="mt-2">🟢 STREAMING</div>
                     `,
@@ -309,9 +309,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     headerClass: 'bg-error',
                     badgeClass: '!text-error',
                     statusText: '🔴 OFFLINE',
-                    bgColor: '#333',
+                    bgClass: 'bg-gray-800',
                     content: `
-                        <div class="mb-2" style="font-size: 2rem;">📺</div>
+                        <div class="text-4xl mb-2">📺</div>
                         <div>[NO SIGNAL]</div>
                         <div class="mt-2">🔴 OFFLINE</div>
                     `,
@@ -322,7 +322,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     headerClass: 'bg-warning',
                     badgeClass: '!text-warning',
                     statusText: '🟡 CONNECTING',
-                    bgColor: '#666',
+                    bgClass: 'bg-gray-600',
                     content: `
                         <div class="mb-2">
                             <div class="loading loading-spinner loading-lg" role="status">
@@ -339,20 +339,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateCameraStatus(cardElement, newStatus) {
         const statusInfo = getStatusInfo(newStatus);
-        const header = cardElement.querySelector('.card-header');
+        const header = cardElement.querySelector('.flex.justify-between.items-center');
         const statusBadge = header.querySelector('.badge');
-        const feedArea = cardElement.querySelector('.position-relative');
+        const feedArea = cardElement.querySelector('.relative');
         const buttonsArea = cardElement.querySelector('.mt-2');
 
         // Update header class
-        header.className = `card-header ${statusInfo.headerClass} text-white flex justify-between items-center`;
+        header.className = `flex justify-between items-center p-4 border-b border-base-300 ${statusInfo.headerClass} text-white`;
         
         // Update status badge
         statusBadge.className = `badge badge-neutral ${statusInfo.badgeClass}`;
         statusBadge.textContent = statusInfo.statusText;
         
         // Update feed area
-        feedArea.style.background = statusInfo.bgColor;
+        feedArea.className = `relative h-48 w-full ${statusInfo.bgClass}`;
         feedArea.querySelector('.text-center').innerHTML = statusInfo.content;
         
         // Update buttons
