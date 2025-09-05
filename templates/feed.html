@@ -64,7 +64,7 @@
 </div>
 
 <!-- Enhanced Stats Bottom Aligned -->
-<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 shadow-lg py-2 z-[1000]">
+<div class="fixed bottom-0 left-0 w-full bg-base-200 border-t border-base-300 shadow-lg py-2 z-50">
     <div class="text-center">
         <div class="mb-1">
             📊 <strong>Stats:</strong> 
@@ -81,23 +81,17 @@
 
 <!-- Add Camera Modal -->
 <dialog id="addCameraModal" class="modal">
-    <div class="modal-box w-11/12 max-w-5xl">
-            <div class="bg-success text-white p-4 rounded-t">
-                <h1 class="text-lg font-bold" id="addCameraModalLabel">➕ Add New Camera</h1>
-                <button type="button" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onclick="addCameraModal.close()" aria-label="Close">✕</button>
-            </div>
-            <div class="p-4">
+    <div class="modal-box w-11/12 max-w-none">
+        <h3 class="font-bold text-lg mb-4">Add New Camera</h3>
                 <form id="addCameraForm">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="form-control">
                             <label for="cameraName" class="label"><span class="label-text">Camera Name <span class="text-error">*</span></span></label>
-                            <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., Front Door, Backyard" required>
-                            <div class="label"><span class="label-text-alt">Enter a descriptive name for your camera</span></div>
+                            <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., UAV Feed, LORROS Feed" required>
                         </div>
                         <div class="form-control">
                             <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
                             <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
-                            <div class="label"><span class="label-text-alt">Complete RTSP stream URL</span></div>
                         </div>
                     </div>
 
@@ -105,35 +99,27 @@
                         <div class="form-control">
                             <label for="username" class="label"><span class="label-text">Username</span></label>
                             <input type="text" class="input input-bordered w-full" id="username" name="username" placeholder="admin">
-                            <div class="label"><span class="label-text-alt">Camera authentication username (optional)</span></div>
                         </div>
                         <div class="form-control">
                             <label for="password" class="label"><span class="label-text">Password</span></label>
                             <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
-                            <div class="label"><span class="label-text-alt">Camera authentication password (optional)</span></div>
                         </div>
                     </div>
 
 
                     <!-- Connection Test Status -->
-                    <div id="connectionStatus" class="alert alert-info hidden" role="alert">
-                        <div class="flex items-center">
-                            <div class="loading loading-spinner loading-sm mr-2" role="status">
-                                <span class="sr-only">Loading...</span>
-                            </div>
-                            Testing connection...
-                        </div>
-                    </div>
+                    <div id="connectionStatus" class="hidden" style="margin-top: 1.5rem;" role="alert"></div>
                 </form>
-            </div>
-            <div class="modal-action justify-center">
-                <button type="button" class="btn btn-info shadow-sm" id="testConnection">
-                    🔗 Test Connection
-                </button>
-                <button type="button" class="btn btn-success shadow-sm" id="addCameraBtn">
-                    ➕ Add Camera
-                </button>
-            </div>
+                
+                <div class="modal-action">
+                    <button type="button" class="btn" onclick="document.getElementById('addCameraModal').close()">Close</button>
+                    <button type="button" class="btn" id="testConnection">
+                        Test Connection
+                    </button>
+                    <button type="button" class="btn btn-neutral" id="addCameraBtn">
+                        Add Camera
+                    </button>
+                </div>
     </div>
 </dialog>
 
@@ -201,7 +187,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 connectionStatus.className = 'alert alert-error';
                 connectionStatus.innerHTML = `
                     <div class="flex items-center">
-                        <span class="mr-2">❌</span>
                         ${result.error}
                     </div>
                 `;
@@ -210,7 +195,6 @@ document.addEventListener('DOMContentLoaded', function() {
             connectionStatus.className = 'alert alert-error';
             connectionStatus.innerHTML = `
                 <div class="flex items-center">
-                    <span class="mr-2">❌</span>
                     Network error: ${error.message}
                 </div>
             `;
@@ -313,9 +297,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const bottomStats = document.querySelector('.fixed .text-center div:first-child');
                 bottomStats.innerHTML = `
                     📊 <strong>Stats:</strong> 
-                    <span class="badge badge-success shadow-sm mr-1">${systemStatus.online_cameras} Online</span>
-                    <span class="badge badge-error shadow-sm mr-1">${systemStatus.offline_cameras} Offline</span>
-                    <span class="badge badge-warning shadow-sm mr-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
+                    <span class="badge badge-success mr-1">${systemStatus.online_cameras} Online</span>
+                    <span class="badge badge-error mr-1">${systemStatus.offline_cameras} Offline</span>
+                    <span class="badge badge-warning mr-1">${systemStatus.total_cameras - systemStatus.online_cameras - systemStatus.offline_cameras} Connecting</span>
                 `;
                 
                 // Update total frames
@@ -341,7 +325,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
         
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert ${typeMap[type] || 'alert-info'} fixed top-4 left-1/2 transform -translate-x-1/2 z-[9999] max-w-md shadow-lg`;
+        alertDiv.className = `alert ${typeMap[type] || 'alert-info'} fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md shadow-lg`;
         alertDiv.innerHTML = `
             <div class="flex items-center justify-between">
                 <span>${message}</span>
