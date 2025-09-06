@@ -20,7 +20,7 @@
             </div>
             
             <!-- Video Area -->
-            <figure class="h-48 w-full {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-100{% else %}bg-base-100{% endif %}">
+            <figure class="h-96 w-full {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-100{% else %}bg-base-100{% endif %}">
                 <div class="h-full w-full relative">
                     {% if camera.status == 'online' %}
                         <img src="/api/cameras/{{ camera.id }}/stream" 
