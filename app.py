@@ -50,58 +50,7 @@ def cleanup():
         camera_manager.shutdown()
 
 # In-memory storage for cameras (replace with database in production)
-cameras = [
-    {
-        'id': 1,
-        'name': 'Camera 1 - Front',
-        'rtsp_url': 'rtsp://wowzaec2demo.streamlock.net/vod-multitrack/_definst_/mp4:ElephantsDream/ElephantsDream.mp4',
-        'username': '',
-        'password': '',
-        'status': 'online',
-        'auto_start': True,
-        'created_at': time.time()
-    },
-    {
-        'id': 2,
-        'name': 'Camera 2 - Backyard',
-        'rtsp_url': 'rtsp://192.168.1.101:554/stream',
-        'username': '',
-        'password': '',
-        'status': 'online',
-        'auto_start': True,
-        'created_at': time.time()
-    },
-    {
-        'id': 3,
-        'name': 'Camera 3 - Garage',
-        'rtsp_url': 'rtsp://192.168.1.102:554/stream',
-        'username': '',
-        'password': '',
-        'status': 'offline',
-        'auto_start': True,
-        'created_at': time.time()
-    },
-    {
-        'id': 4,
-        'name': 'Camera 4 - Kitchen',
-        'rtsp_url': 'rtsp://192.168.1.103:554/stream',
-        'username': '',
-        'password': '',
-        'status': 'online',
-        'auto_start': True,
-        'created_at': time.time()
-    },
-    {
-        'id': 5,
-        'name': 'Camera 5 - Driveway',
-        'rtsp_url': 'rtsp://192.168.1.104:554/stream',
-        'username': '',
-        'password': '',
-        'status': 'connecting',
-        'auto_start': True,
-        'created_at': time.time()
-    }
-]
+cameras = []
 
 def initialize_cameras():
     """Initialize all cameras in the enhanced camera manager"""
