@@ -107,8 +107,8 @@ def sensor_analytics():
     """Sensor Analytics page to display detection database entries"""
     from database import db_manager
     
-    # Get recent detection records (50 latest)
-    detections = db_manager.get_detection_history(limit=50)
+    # Get enriched detection records (50 latest) with camera info
+    detections = db_manager.get_enriched_detection_history(limit=50)
     
     return render_template('sensor_analytics.html', detections=detections)
 

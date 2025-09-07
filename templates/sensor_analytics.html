@@ -29,10 +29,7 @@
                             {% for detection in detections %}
                             <tr>
                                 <td>
-                                    <div class="flex items-center gap-2">
-                                        <div class="badge badge-outline">CAM-{{ "%03d"|format(detection.camera_id) }}</div>
-                                        <span>{{ detection.camera_name }}</span>
-                                    </div>
+                                    <span>{{ detection.camera_name }}</span>
                                 </td>
                                 <td>
                                     <div class="flex flex-col">
@@ -42,21 +39,13 @@
                                 </td>
                                 <td>
                                     <div class="flex items-center gap-1">
-                                        {% if detection.full_image_path %}
-                                            <img src="/api/detections/images/{{ detection.full_image_path }}" 
+                                        {% if detection.image_path %}
+                                            <img src="/api/detections/images/{{ detection.image_path }}" 
                                                  class="w-12 h-12 rounded object-cover cursor-pointer border border-base-300" 
-                                                 title="Full frame image - Click to open"
+                                                 title="Detection image - Click to open"
                                                  onclick="window.open(this.src, '_blank')"
                                                  onerror="this.style.display='none'">
-                                        {% endif %}
-                                        {% if detection.person_image_path %}
-                                            <img src="/api/detections/images/{{ detection.person_image_path }}" 
-                                                 class="w-12 h-12 rounded object-cover cursor-pointer border border-base-300" 
-                                                 title="Person crop - Click to open"
-                                                 onclick="window.open(this.src, '_blank')"
-                                                 onerror="this.style.display='none'">
-                                        {% endif %}
-                                        {% if not detection.full_image_path and not detection.person_image_path %}
+                                        {% else %}
                                             <div class="w-12 h-12 rounded bg-base-300 flex items-center justify-center">
                                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current opacity-50"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                                             </div>

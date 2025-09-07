@@ -14,6 +14,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def get_ist_now():
+    """Get current datetime using local system time (IST)"""
+    return datetime.now()
+
 Base = declarative_base()
 
 class Camera(Base):
@@ -24,7 +28,7 @@ class Camera(Base):
     unique_id = Column(String(50), index=True)
     name = Column(String(200), nullable=False)
     rtsp_url = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
     
     # Relationship to detections
     detections = relationship("Detection", back_populates="camera")
@@ -48,7 +52,7 @@ class Detection(Base):
     image_path = Column(Text, nullable=False)  # Path to detection image
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
     
     # Additional metadata
     frame_width = Column(Integer)
@@ -128,14 +132,14 @@ class DatabaseManager:
             if not camera:
                 # Create new camera record
                 if not camera_unique_id:
-                    camera_unique_id = f"camera_{camera_id}_{int(datetime.utcnow().timestamp())}"
+                    camera_unique_id = f"camera_{camera_id}_{int(get_ist_now().timestamp())}"
                 
                 camera = Camera(
                     id=camera_id,
                     unique_id=camera_unique_id,
                     name=camera_name,
                     rtsp_url=rtsp_url,
-                    created_at=datetime.utcnow()
+                    created_at=get_ist_now().replace(tzinfo=None)
                 )
                 session.add(camera)
                 session.commit()
@@ -172,14 +176,14 @@ class DatabaseManager:
             
             if not camera:
                 # Create new camera record in the same session
-                camera_unique_id = f"camera_{camera_id}_{int(datetime.utcnow().timestamp())}"
+                camera_unique_id = f"camera_{camera_id}_{int(get_ist_now().timestamp())}"
                 
                 camera = Camera(
                     id=camera_id,
                     unique_id=camera_unique_id,
                     name=detection_data.get('camera_name', f'Camera {camera_id}'),
                     rtsp_url=detection_data.get('rtsp_url', ''),
-                    created_at=datetime.utcnow()
+                    created_at=get_ist_now().replace(tzinfo=None)
                 )
                 session.add(camera)
                 session.flush()  # Ensure camera gets ID without committing yet
@@ -255,6 +259,57 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_enriched_detection_history(self, limit: int = 50, 
+                                     start_date: datetime = None, end_date: datetime = None) -> List[Dict[str, Any]]:
+        """Get detection history with camera information properly joined as dictionaries"""
+        session = self.get_session()
+        try:
+            # Step 1: Get all cameras with their basic info
+            cameras = session.query(Camera).all()
+            camera_lookup = {cam.id: {'name': cam.name, 'unique_id': cam.unique_id} for cam in cameras}
+            
+            # Step 2: Build detection query with filters
+            query = session.query(Detection)
+            
+            if start_date:
+                query = query.filter(Detection.created_at >= start_date)
+            
+            if end_date:
+                query = query.filter(Detection.created_at <= end_date)
+            
+            # Get detections ordered by most recent first
+            detections = query.order_by(Detection.created_at.desc()).limit(limit).all()
+            
+            # Step 3: Combine data manually into dictionaries
+            enriched_detections = []
+            for detection in detections:
+                camera_info = camera_lookup.get(
+                    detection.camera_id, 
+                    {'name': f'Camera {detection.camera_id}', 'unique_id': f'camera_{detection.camera_id}'}
+                )
+                
+                enriched_detections.append({
+                    'id': detection.id,
+                    'person_id': detection.person_id,
+                    'camera_id': detection.camera_id,
+                    'camera_name': camera_info['name'],
+                    'camera_unique_id': camera_info['unique_id'],
+                    'confidence': detection.confidence,
+                    'bbox': [detection.bbox_x1, detection.bbox_y1, detection.bbox_x2, detection.bbox_y2],
+                    'image_path': detection.image_path,
+                    'created_at': detection.created_at,
+                    'frame_width': detection.frame_width,
+                    'frame_height': detection.frame_height
+                })
+            
+            return enriched_detections
+            
+        except Exception as e:
+            logger.error(f"Error getting enriched detection history: {e}")
+            return []
+        finally:
+            session.close()
+    
     def get_detections_by_unique_id(self, camera_unique_id: str, limit: int = 50, 
                                   start_date: datetime = None, end_date: datetime = None) -> List[Detection]:
         """Get all detections for cameras with the specified unique_id (aggregated across all camera records)"""
@@ -300,7 +355,7 @@ class DatabaseManager:
             total_detections = query.count()
             
             # Get recent detections (last 24 hours)
-            recent_time = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            recent_time = get_ist_now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
             recent_detections = query.filter(Detection.created_at >= recent_time).count()
             
             # Get latest detection
@@ -344,7 +399,7 @@ class DatabaseManager:
             total_detections = query.count()
             
             # Get recent detections (last 24 hours)
-            recent_time = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            recent_time = get_ist_now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
             recent_detections = query.filter(Detection.created_at >= recent_time).count()
             
             # Get latest detection
@@ -376,7 +431,7 @@ class DatabaseManager:
         """Clean up old detection records (optional maintenance)"""
         session = self.get_session()
         try:
-            cutoff_date = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff_date = get_ist_now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
             cutoff_date = cutoff_date - timedelta(days=days_to_keep)
             
             old_detections = session.query(Detection).filter(
