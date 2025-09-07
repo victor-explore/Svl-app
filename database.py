@@ -21,7 +21,7 @@ class Camera(Base):
     __tablename__ = 'cameras'
     
     id = Column(Integer, primary_key=True, index=True)
-    unique_id = Column(String(50), unique=True, index=True)
+    unique_id = Column(String(50), index=True)
     name = Column(String(200), nullable=False)
     rtsp_url = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -36,7 +36,6 @@ class Detection(Base):
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(String(50), index=True)  # UUID for unique person identification
     camera_id = Column(Integer, ForeignKey('cameras.id'), nullable=False)
-    camera_unique_id = Column(String(50), nullable=False)
     
     # Detection details
     confidence = Column(Float, nullable=False)
@@ -64,7 +63,7 @@ class Detection(Base):
             'id': self.id,
             'person_id': self.person_id,
             'camera_id': self.camera_id,
-            'camera_unique_id': self.camera_unique_id,
+            'camera_unique_id': self.camera.unique_id,
             'camera_name': self.camera.name,
             'confidence': round(self.confidence, 3),
             'bbox': [self.bbox_x1, self.bbox_y1, self.bbox_x2, self.bbox_y2],
@@ -173,9 +172,7 @@ class DatabaseManager:
             
             if not camera:
                 # Create new camera record in the same session
-                camera_unique_id = detection_data.get('camera_unique_id')
-                if not camera_unique_id:
-                    camera_unique_id = f"camera_{camera_id}_{int(datetime.utcnow().timestamp())}"
+                camera_unique_id = f"camera_{camera_id}_{int(datetime.utcnow().timestamp())}"
                 
                 camera = Camera(
                     id=camera_id,
@@ -200,7 +197,6 @@ class DatabaseManager:
             detection = Detection(
                 person_id=person_id,
                 camera_id=camera_id,
-                camera_unique_id=camera.unique_id,  # Now safe to access - camera is attached
                 confidence=detection_data['confidence'],
                 bbox_x1=detection_data['bbox'][0],
                 bbox_y1=detection_data['bbox'][1],
@@ -259,6 +255,39 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_detections_by_unique_id(self, camera_unique_id: str, limit: int = 50, 
+                                  start_date: datetime = None, end_date: datetime = None) -> List[Detection]:
+        """Get all detections for cameras with the specified unique_id (aggregated across all camera records)"""
+        session = self.get_session()
+        try:
+            # Get all camera IDs with this unique_id
+            camera_ids_query = session.query(Camera.id).filter(Camera.unique_id == camera_unique_id)
+            camera_id_list = [cam_id[0] for cam_id in camera_ids_query.all()]
+            
+            if not camera_id_list:
+                return []
+            
+            # Get detections for all these cameras
+            query = session.query(Detection).filter(Detection.camera_id.in_(camera_id_list))
+            
+            # Apply date filters
+            if start_date:
+                query = query.filter(Detection.created_at >= start_date)
+            
+            if end_date:
+                query = query.filter(Detection.created_at <= end_date)
+            
+            # Order by most recent first and limit results
+            detections = query.order_by(Detection.created_at.desc()).limit(limit).all()
+            
+            return detections
+            
+        except Exception as e:
+            logger.error(f"Error getting detections by unique_id {camera_unique_id}: {e}")
+            return []
+        finally:
+            session.close()
+    
     def get_detection_stats(self, camera_id: int = None) -> Dict[str, Any]:
         """Get detection statistics"""
         session = self.get_session()
@@ -289,6 +318,57 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error getting detection stats: {e}")
             return {'total_detections': 0, 'recent_detections_today': 0}
+        finally:
+            session.close()
+    
+    def get_detection_stats_by_unique_id(self, camera_unique_id: str) -> Dict[str, Any]:
+        """Get detection statistics aggregated for all cameras with the specified unique_id"""
+        session = self.get_session()
+        try:
+            # Get all camera IDs with this unique_id
+            camera_ids_query = session.query(Camera.id).filter(Camera.unique_id == camera_unique_id)
+            camera_id_list = [cam_id[0] for cam_id in camera_ids_query.all()]
+            
+            if not camera_id_list:
+                return {
+                    'total_detections': 0,
+                    'recent_detections_today': 0,
+                    'latest_detection_time': None,
+                    'camera_unique_id': camera_unique_id,
+                    'camera_records_count': 0
+                }
+            
+            # Get all detections for cameras with this unique_id
+            query = session.query(Detection).filter(Detection.camera_id.in_(camera_id_list))
+            
+            total_detections = query.count()
+            
+            # Get recent detections (last 24 hours)
+            recent_time = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+            recent_detections = query.filter(Detection.created_at >= recent_time).count()
+            
+            # Get latest detection
+            latest_detection = query.order_by(Detection.created_at.desc()).first()
+            
+            stats = {
+                'total_detections': total_detections,
+                'recent_detections_today': recent_detections,
+                'latest_detection_time': latest_detection.created_at.isoformat() if latest_detection else None,
+                'camera_unique_id': camera_unique_id,
+                'camera_records_count': len(camera_id_list)
+            }
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error getting detection stats by unique_id {camera_unique_id}: {e}")
+            return {
+                'total_detections': 0,
+                'recent_detections_today': 0,
+                'latest_detection_time': None,
+                'camera_unique_id': camera_unique_id,
+                'camera_records_count': 0
+            }
         finally:
             session.close()
     

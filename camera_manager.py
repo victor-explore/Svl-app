@@ -384,8 +384,7 @@ class CameraWorker(threading.Thread):
                     if DATABASE_ENABLED:
                         try:
                             detection_data = detection.to_database_dict(
-                                camera_id=self.camera_id,
-                                camera_unique_id=f"camera_{self.camera_id}"
+                                camera_id=self.camera_id
                             )
                             detection_data['rtsp_url'] = self.rtsp_url
                             detection_data['camera_name'] = self.name

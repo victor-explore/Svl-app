@@ -38,7 +38,7 @@ class DetectionResult:
             'image_path': self.image_path
         }
     
-    def to_database_dict(self, camera_id: int, camera_unique_id: str = None) -> Dict:
+    def to_database_dict(self, camera_id: int) -> Dict:
         """Convert to dictionary format for database storage"""
         return {
             'confidence': self.confidence,
@@ -46,7 +46,6 @@ class DetectionResult:
             'frame_width': self.frame_width,
             'frame_height': self.frame_height,
             'image_path': self.image_path,
-            'camera_unique_id': camera_unique_id or f"camera_{camera_id}"
         }
 
 class PersonDetector:

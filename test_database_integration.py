@@ -45,7 +45,6 @@ def test_database_models():
             'frame_width': 1920,
             'frame_height': 1080,
             'image_path': "test/path/to/image.jpg",
-            'camera_unique_id': "test_camera_999"
         }
         
         test_detection_data['camera_name'] = "Test Camera"
@@ -155,10 +154,9 @@ def test_detection_result():
         
         # Test to_database_dict method
         db_dict = detection.to_database_dict(
-            camera_id=999,
-            camera_unique_id="test_camera_999"
+            camera_id=999
         )
-        required_db_fields = ['confidence', 'bbox', 'camera_unique_id']
+        required_db_fields = ['confidence', 'bbox']
         for field in required_db_fields:
             if field not in db_dict:
                 print(f"- Missing field in to_database_dict: {field}")
@@ -169,6 +167,109 @@ def test_detection_result():
         
     except Exception as e:
         print(f"- DetectionResult test failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def test_unique_id_aggregation():
+    """Test unique_id based aggregation for camera re-registration"""
+    print("\n=== Testing Unique ID Aggregation ===")
+    try:
+        from database import DatabaseManager
+        
+        # Initialize test database
+        test_db = DatabaseManager("sqlite:///test_unique_id_aggregation.db")
+        test_db.initialize()
+        print("+ Test database initialized")
+        
+        # Create multiple camera records with same unique_id (simulating camera reconnections)
+        unique_camera_id = "test_camera_reconnect"
+        
+        # First camera session
+        camera1 = test_db.create_or_get_camera(
+            camera_id=101,
+            camera_name="Security Camera Front Door - Session 1",
+            camera_unique_id=unique_camera_id,
+            rtsp_url="rtsp://192.168.1.100/stream1"
+        )
+        print(f"+ Camera session 1 created: ID {camera1.id}")
+        
+        # Add detections for first session
+        for i in range(3):
+            detection_data = {
+                'confidence': 0.8 + (i * 0.05),
+                'bbox': [100 + i*10, 150 + i*10, 250 + i*10, 400 + i*10],
+                'frame_width': 1920,
+                'frame_height': 1080,
+                'image_path': f"test/session1/detection_{i}.jpg",
+                'camera_name': "Security Camera Front Door - Session 1"
+            }
+            test_db.save_detection(camera_id=101, detection_data=detection_data)
+        print("+ Added 3 detections for session 1")
+        
+        # Second camera session (same unique_id, different database id)
+        camera2 = test_db.create_or_get_camera(
+            camera_id=102,
+            camera_name="Security Camera Front Door - Session 2",
+            camera_unique_id=unique_camera_id,  # Same unique_id!
+            rtsp_url="rtsp://192.168.1.100/stream1"
+        )
+        print(f"+ Camera session 2 created: ID {camera2.id}")
+        
+        # Add detections for second session
+        for i in range(2):
+            detection_data = {
+                'confidence': 0.9 + (i * 0.02),
+                'bbox': [150 + i*15, 200 + i*15, 300 + i*15, 450 + i*15],
+                'frame_width': 1920,
+                'frame_height': 1080,
+                'image_path': f"test/session2/detection_{i}.jpg",
+                'camera_name': "Security Camera Front Door - Session 2"
+            }
+            test_db.save_detection(camera_id=102, detection_data=detection_data)
+        print("+ Added 2 detections for session 2")
+        
+        # Test aggregated detection retrieval
+        all_detections = test_db.get_detections_by_unique_id(unique_camera_id, limit=10)
+        print(f"+ Retrieved {len(all_detections)} total detections across both sessions")
+        
+        if len(all_detections) != 5:
+            print(f"- Expected 5 detections, got {len(all_detections)}")
+            return False
+        
+        # Test aggregated statistics
+        stats = test_db.get_detection_stats_by_unique_id(unique_camera_id)
+        print(f"+ Aggregated stats - Total detections: {stats['total_detections']}")
+        print(f"+ Camera records count: {stats['camera_records_count']}")
+        
+        if stats['total_detections'] != 5:
+            print(f"- Expected 5 total detections in stats, got {stats['total_detections']}")
+            return False
+            
+        if stats['camera_records_count'] != 2:
+            print(f"- Expected 2 camera records, got {stats['camera_records_count']}")
+            return False
+        
+        # Test that individual camera stats still work
+        individual_stats_1 = test_db.get_detection_stats(camera_id=101)
+        individual_stats_2 = test_db.get_detection_stats(camera_id=102)
+        print(f"+ Individual stats - Session 1: {individual_stats_1['total_detections']} detections")
+        print(f"+ Individual stats - Session 2: {individual_stats_2['total_detections']} detections")
+        
+        if individual_stats_1['total_detections'] != 3 or individual_stats_2['total_detections'] != 2:
+            print("- Individual camera stats incorrect")
+            return False
+        
+        # Clean up test database
+        if os.path.exists("test_unique_id_aggregation.db"):
+            os.remove("test_unique_id_aggregation.db")
+            print("+ Test database cleaned up")
+        
+        print("+ All unique_id aggregation tests passed!")
+        return True
+        
+    except Exception as e:
+        print(f"- Unique ID aggregation test failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -208,6 +309,7 @@ def main():
     test_results.append(("Config Settings", test_config_settings()))
     test_results.append(("DetectionResult Class", test_detection_result()))
     test_results.append(("Database Models", test_database_models()))
+    test_results.append(("Unique ID Aggregation", test_unique_id_aggregation()))
     test_results.append(("Image Storage", test_image_storage()))
     
     # Summary

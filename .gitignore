@@ -57,3 +57,11 @@ Thumbs.db
 
 # Image files
 *.jpg
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Detection images directory
+detection_images/
