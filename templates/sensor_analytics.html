@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Sensor Analytics - Svl App{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-6">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-base-content mb-2">Sensor Analytics</h1>
+        <p class="text-base-content/70">Detection database entries and analytics</p>
+    </div>
+
+
+    <!-- Detection Records Table -->
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body p-0">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra w-full">
+                    <thead>
+                        <tr class="border-base-300">
+                            <th>Camera Name</th>
+                            <th>Timestamp</th>
+                            <th>Image</th>
+                            <th>Confidence Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if detections %}
+                            {% for detection in detections %}
+                            <tr>
+                                <td>
+                                    <div class="flex items-center gap-2">
+                                        <div class="badge badge-outline">CAM-{{ "%03d"|format(detection.camera_id) }}</div>
+                                        <span>{{ detection.camera_name }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col">
+                                        <span class="font-medium">{{ detection.detected_at.strftime('%Y-%m-%d') }}</span>
+                                        <span class="text-sm text-base-content/70">{{ detection.detected_at.strftime('%H:%M:%S') }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex items-center gap-1">
+                                        {% if detection.full_image_path %}
+                                            <img src="/api/detections/images/{{ detection.full_image_path }}" 
+                                                 class="w-12 h-12 rounded object-cover cursor-pointer border border-base-300" 
+                                                 title="Full frame image - Click to open"
+                                                 onclick="window.open(this.src, '_blank')"
+                                                 onerror="this.style.display='none'">
+                                        {% endif %}
+                                        {% if detection.person_image_path %}
+                                            <img src="/api/detections/images/{{ detection.person_image_path }}" 
+                                                 class="w-12 h-12 rounded object-cover cursor-pointer border border-base-300" 
+                                                 title="Person crop - Click to open"
+                                                 onclick="window.open(this.src, '_blank')"
+                                                 onerror="this.style.display='none'">
+                                        {% endif %}
+                                        {% if not detection.full_image_path and not detection.person_image_path %}
+                                            <div class="w-12 h-12 rounded bg-base-300 flex items-center justify-center">
+                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-4 h-4 stroke-current opacity-50"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    {% set confidence_percent = (detection.confidence * 100) %}
+                                    {% if confidence_percent >= 80 %}
+                                        <div class="badge badge-success">{{ "%.1f"|format(confidence_percent) }}%</div>
+                                    {% elif confidence_percent >= 65 %}
+                                        <div class="badge badge-warning">{{ "%.1f"|format(confidence_percent) }}%</div>
+                                    {% else %}
+                                        <div class="badge badge-error">{{ "%.1f"|format(confidence_percent) }}%</div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center py-8 text-base-content/50">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-12 h-12 stroke-current opacity-25"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                                        <span>No detection records found</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}

@@ -58,7 +58,7 @@ ERROR_MESSAGES = {
 PERSON_DETECTION_ENABLED = True                # Enable person detection globally
 PERSON_DETECTION_MODEL = 'yolov8n.pt'         # YOLOv8 model to use (yolov8n.pt is fastest)
 PERSON_DETECTION_CONFIDENCE = 0.5             # Minimum confidence threshold for detections
-PERSON_DETECTION_INTERVAL = 1                 # Process every frame for testing (was 5)
+PERSON_DETECTION_INTERVAL = 30                # Process every 30 frames (~1.2 seconds at 25 FPS)
 PERSON_DETECTION_MAX_HISTORY = 100            # Maximum detection results to keep per camera
 PERSON_DETECTION_DRAW_BOXES = True            # Draw bounding boxes on streamed video
 PERSON_DETECTION_BOX_COLOR = (0, 255, 0)      # Bounding box color (BGR format)
@@ -81,3 +81,7 @@ DETECTION_IMAGE_QUALITY_CROP = 90            # JPEG quality for person crops (0-
 DATABASE_CLEANUP_ENABLED = False              # Enable automatic cleanup of old records
 DATABASE_CLEANUP_DAYS = 30                   # Days to keep detection records
 DATABASE_CLEANUP_INTERVAL_HOURS = 24         # Hours between cleanup runs
+
+# Storage Throttling Settings
+DETECTION_STORAGE_INTERVAL_SECONDS = 30      # Save images/DB every N seconds when person detected
+DETECTION_STORAGE_THROTTLING_ENABLED = True  # Enable time-based storage throttling

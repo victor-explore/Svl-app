@@ -102,6 +102,16 @@ def feed():
     }
     return render_template('feed.html', cameras=cameras, stats=stats)
 
+@app.route('/sensor-analytics')
+def sensor_analytics():
+    """Sensor Analytics page to display detection database entries"""
+    from database import db_manager
+    
+    # Get recent detection records (50 latest)
+    detections = db_manager.get_detection_history(limit=50)
+    
+    return render_template('sensor_analytics.html', detections=detections)
+
 
 @app.route('/api/cameras', methods=['GET'])
 def get_cameras():

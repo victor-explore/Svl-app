@@ -73,6 +73,9 @@ class CameraWorker(threading.Thread):
         self.last_detection_count = 0
         self.last_detection_time = None
         
+        # Storage throttling tracking
+        self.last_storage_time = 0  # Timestamp of last storage save
+        
         # Get detector instance from global manager
         if self.detection_enabled:
             detection_manager.get_detector(
@@ -333,9 +336,22 @@ class CameraWorker(threading.Thread):
             return None, None, [], 0
     
     def _save_detections_to_storage(self, frame, detections):
-        """Save detection data to database and images to disk"""
+        """Save detection data to database and images to disk with time-based throttling"""
         if not detections:
             return
+        
+        # Time-based throttling check
+        if DETECTION_STORAGE_THROTTLING_ENABLED:
+            current_time = time.time()
+            time_since_last_storage = current_time - self.last_storage_time
+            
+            if time_since_last_storage < DETECTION_STORAGE_INTERVAL_SECONDS:
+                logger.debug(f"[{self.name}] Storage throttled - {time_since_last_storage:.1f}s since last save (need {DETECTION_STORAGE_INTERVAL_SECONDS}s)")
+                return  # Skip storage, not enough time has passed
+            
+            # Update last storage time
+            self.last_storage_time = current_time
+            logger.info(f"[{self.name}] Storage interval reached ({DETECTION_STORAGE_INTERVAL_SECONDS}s) - saving detection data")
         
         try:
             # Initialize database if enabled
