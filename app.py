@@ -152,14 +152,6 @@ def add_camera():
                 'error': 'Unique ID can only contain letters, numbers, underscores, and hyphens'
             }), 400
 
-        # Check for duplicate unique_id
-        existing_unique = next((c for c in cameras if c.get('unique_id') == unique_id), None)
-        if existing_unique:
-            return jsonify({
-                'success': False,
-                'error': f'Unique ID already exists: {unique_id}'
-            }), 400
-        
         # Check for duplicate RTSP URL
         existing_camera = next((c for c in cameras if c['rtsp_url'] == data['rtsp_url']), None)
         if existing_camera:
