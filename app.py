@@ -133,6 +133,14 @@ def add_camera():
                 'error': 'Camera name and RTSP URL are required'
             }), 400
         
+        # Check for duplicate RTSP URL
+        existing_camera = next((c for c in cameras if c['rtsp_url'] == data['rtsp_url']), None)
+        if existing_camera:
+            return jsonify({
+                'success': False,
+                'error': f'RTSP URL already exists for camera "{existing_camera["name"]}"'
+            }), 400
+        
         # Create new camera
         new_camera = {
             'id': len(cameras) + 1,
