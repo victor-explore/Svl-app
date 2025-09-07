@@ -53,3 +53,13 @@ ERROR_MESSAGES = {
     'invalid_url': 'Invalid RTSP URL format',
     'timeout': 'Connection timeout exceeded'
 }
+
+# Person Detection Settings
+PERSON_DETECTION_ENABLED = True                # Enable person detection globally
+PERSON_DETECTION_MODEL = 'yolov8n.pt'         # YOLOv8 model to use (yolov8n.pt is fastest)
+PERSON_DETECTION_CONFIDENCE = 0.5             # Minimum confidence threshold for detections
+PERSON_DETECTION_INTERVAL = 1                 # Process every frame for testing (was 5)
+PERSON_DETECTION_MAX_HISTORY = 100            # Maximum detection results to keep per camera
+PERSON_DETECTION_DRAW_BOXES = True            # Draw bounding boxes on streamed video
+PERSON_DETECTION_BOX_COLOR = (0, 255, 0)      # Bounding box color (BGR format)
+PERSON_DETECTION_BOX_THICKNESS = 2            # Bounding box line thickness

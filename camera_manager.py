@@ -11,11 +11,12 @@ import os
 import time
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, List
 from config import *
+from person_detector import detection_manager, DetectionResult
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -58,8 +59,24 @@ class CameraWorker(threading.Thread):
         self.frames_dropped = 0
         self.start_time = time.time()
         
+        # Person detection tracking
+        self.detection_enabled = PERSON_DETECTION_ENABLED
+        self.frame_count_for_detection = 0
+        self.total_persons_detected = 0
+        self.last_detection_count = 0
+        self.last_detection_time = None
+        
+        # Get detector instance from global manager
+        if self.detection_enabled:
+            detection_manager.get_detector(
+                camera_id=self.camera_id,
+                model_path=PERSON_DETECTION_MODEL,
+                confidence_threshold=PERSON_DETECTION_CONFIDENCE
+            )
+            detection_manager.enable_detection(self.camera_id, True)
+        
         self.daemon = True
-        logger.info(f"[{self.name}] Camera worker initialized")
+        logger.info(f"[{self.name}] Camera worker initialized with detection {'enabled' if self.detection_enabled else 'disabled'}")
 
     @property
     def status(self) -> str:
@@ -82,7 +99,7 @@ class CameraWorker(threading.Thread):
         uptime = time.time() - self.start_time
         fps = self.frames_captured / uptime if uptime > 0 else 0
         
-        return {
+        stats = {
             'status': self.status,
             'frames_captured': self.frames_captured,
             'frames_dropped': self.frames_dropped,
@@ -92,6 +109,24 @@ class CameraWorker(threading.Thread):
             'connection_attempts': self._connection_attempts,
             'last_error': self._last_error
         }
+        
+        # Add detection statistics if detection is enabled
+        if self.detection_enabled:
+            detection_stats = detection_manager.get_detection_stats(self.camera_id)
+            if detection_stats:
+                stats.update({
+                    'detection_enabled': True,
+                    'total_persons_detected': self.total_persons_detected,
+                    'last_detection_count': self.last_detection_count,
+                    'last_detection_time': self.last_detection_time,
+                    'detection_stats': detection_stats
+                })
+            else:
+                stats['detection_enabled'] = False
+        else:
+            stats['detection_enabled'] = False
+            
+        return stats
 
     def _create_rtsp_url(self) -> str:
         """Create authenticated RTSP URL if credentials provided"""
@@ -185,6 +220,53 @@ class CameraWorker(threading.Thread):
                 self.frames_captured += 1
                 self._last_frame_time = datetime.now()
                 
+                # Person detection processing (if enabled)
+                detections = []
+                detection_count = 0
+                
+                logger.debug(f"[{self.name}] Frame processing - detection_enabled: {self.detection_enabled}")
+                
+                if (self.detection_enabled and 
+                    detection_manager.is_detection_enabled(self.camera_id)):
+                    
+                    self.frame_count_for_detection += 1
+                    logger.debug(f"[{self.name}] Detection frame count: {self.frame_count_for_detection}/{PERSON_DETECTION_INTERVAL}")
+                    
+                    # Process detection every Nth frame
+                    if self.frame_count_for_detection >= PERSON_DETECTION_INTERVAL:
+                        logger.info(f"[{self.name}] Starting person detection processing...")
+                        
+                        try:
+                            detector = detection_manager.get_detector(self.camera_id)
+                            logger.debug(f"[{self.name}] Got detector, model initialized: {detector.is_initialized}")
+                            
+                            detections, detection_count = detector.detect_persons(frame)
+                            logger.info(f"[{self.name}] Detection completed - found {detection_count} person(s)")
+                            
+                            if detection_count > 0:
+                                self.total_persons_detected += detection_count
+                                self.last_detection_count = detection_count
+                                self.last_detection_time = self._last_frame_time
+                                
+                                # Add to detection history
+                                detection_manager.add_detection_result(self.camera_id, detections)
+                                
+                                logger.info(f"[{self.name}] Detected {detection_count} person(s) - Total: {self.total_persons_detected}")
+                            else:
+                                logger.debug(f"[{self.name}] No persons detected in this frame")
+                            
+                            self.frame_count_for_detection = 0
+                            
+                        except Exception as e:
+                            logger.error(f"[{self.name}] Detection error: {e}")
+                            import traceback
+                            logger.error(f"[{self.name}] Detection error traceback: {traceback.format_exc()}")
+                else:
+                    if not self.detection_enabled:
+                        logger.debug(f"[{self.name}] Detection disabled at camera level")
+                    elif not detection_manager.is_detection_enabled(self.camera_id):
+                        logger.debug(f"[{self.name}] Detection disabled at manager level")
+                
                 # Add frame to queue (non-blocking) - optimized buffer management
                 try:
                     # Efficient queue management: drop oldest frame if full
@@ -195,7 +277,15 @@ class CameraWorker(threading.Thread):
                         except queue.Empty:
                             pass
                     
-                    self.frame_queue.put((frame.copy(), self._last_frame_time), block=False)
+                    # Store frame with detection data
+                    frame_data = {
+                        'frame': frame.copy(),
+                        'timestamp': self._last_frame_time,
+                        'detections': detections,
+                        'detection_count': detection_count
+                    }
+                    
+                    self.frame_queue.put(frame_data, block=False)
                     
                 except queue.Full:
                     self.frames_dropped += 1
@@ -217,12 +307,20 @@ class CameraWorker(threading.Thread):
             self.set_status(CameraStatus.OFFLINE, "Connection lost")
             time.sleep(RTSP_RECONNECT_DELAY)
 
-    def get_latest_frame(self) -> Tuple[Optional[Any], Optional[datetime]]:
-        """Get the most recent frame from the queue"""
+    def get_latest_frame(self) -> Tuple[Optional[Any], Optional[datetime], Optional[List], int]:
+        """Get the most recent frame from the queue with detection data"""
         try:
-            return self.frame_queue.get_nowait()
+            frame_data = self.frame_queue.get_nowait()
+            if isinstance(frame_data, dict):
+                # New format with detection data
+                return (frame_data['frame'], frame_data['timestamp'], 
+                       frame_data.get('detections', []), frame_data.get('detection_count', 0))
+            else:
+                # Backward compatibility for old format (frame, timestamp tuple)
+                frame, timestamp = frame_data
+                return frame, timestamp, [], 0
         except queue.Empty:
-            return None, None
+            return None, None, [], 0
 
     def stop(self):
         """Stop the camera worker thread"""
@@ -235,6 +333,10 @@ class CameraWorker(threading.Thread):
                 self.frame_queue.get_nowait()
             except queue.Empty:
                 break
+        
+        # Clean up detection resources
+        if self.detection_enabled:
+            detection_manager.cleanup_camera(self.camera_id)
         
         # Wait for thread to finish
         if self.is_alive():
@@ -381,16 +483,24 @@ class EnhancedCameraManager:
                     del self.workers[camera_id]
                 return True  # Return success since we removed from tracking
 
-    def get_camera_frame(self, camera_id: int) -> Optional[bytes]:
+    def get_camera_frame(self, camera_id: int, draw_detections: bool = None) -> Optional[bytes]:
         """Get latest frame from camera as JPEG bytes - Performance Optimized"""
         if camera_id not in self.workers:
             return None
         
-        frame, timestamp = self.workers[camera_id].get_latest_frame()
+        frame, timestamp, detections, detection_count = self.workers[camera_id].get_latest_frame()
         if frame is None:
             return None
         
         try:
+            # Draw detection boxes if requested and available
+            if draw_detections is None:
+                draw_detections = PERSON_DETECTION_DRAW_BOXES
+                
+            if draw_detections and detections and len(detections) > 0:
+                detector = detection_manager.get_detector(camera_id)
+                frame = detector.draw_detections(frame, detections)
+            
             # Optimized JPEG encoding settings
             encode_params = [
                 cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY,
@@ -421,7 +531,7 @@ class EnhancedCameraManager:
             statuses[camera_id] = self.get_camera_status(camera_id)
         return statuses
 
-    def generate_video_stream(self, camera_id: int):
+    def generate_video_stream(self, camera_id: int, draw_detections: bool = None):
         """Generator for video streaming - Performance Optimized"""
         if camera_id not in self.workers:
             logger.warning(f"Camera {camera_id} not found for streaming")
@@ -429,6 +539,10 @@ class EnhancedCameraManager:
         
         worker = self.workers[camera_id]
         logger.info(f"Starting video stream for camera {camera_id}")
+        
+        # Use default detection drawing setting if not specified
+        if draw_detections is None:
+            draw_detections = PERSON_DETECTION_DRAW_BOXES
         
         last_frame_time = 0
         min_interval = 1.0 / PROCESSING_FPS
@@ -449,8 +563,16 @@ class EnhancedCameraManager:
                     time.sleep(min_interval - (current_time - last_frame_time))
                     continue
                     
-                frame, timestamp = worker.get_latest_frame()
+                frame, timestamp, detections, detection_count = worker.get_latest_frame()
                 if frame is not None:
+                    # Draw detection boxes if requested and available
+                    if draw_detections and detections and len(detections) > 0:
+                        try:
+                            detector = detection_manager.get_detector(camera_id)
+                            frame = detector.draw_detections(frame, detections)
+                        except Exception as e:
+                            logger.error(f"Error drawing detections for camera {camera_id}: {e}")
+                    
                     # Use optimized encoding settings
                     success, buffer = cv2.imencode('.jpg', frame, encode_params)
                     if success:

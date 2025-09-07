@@ -416,7 +416,7 @@ def get_camera_frame(camera_id):
 
 @app.route('/api/cameras/<int:camera_id>/stream')
 def stream_camera(camera_id):
-    """Stream video from RTSP camera using enhanced camera manager"""
+    """Stream video from RTSP camera using enhanced camera manager with person detection"""
     print(f"[DEBUG] stream_camera endpoint called for camera_id: {camera_id}")
     try:
         # Check if camera exists
@@ -430,10 +430,18 @@ def stream_camera(camera_id):
         
         print(f"[DEBUG] Found camera '{camera['name']}', starting enhanced stream...")
         
-        # Use enhanced camera manager for streaming
+        # Check if detection visualization is requested
+        draw_detections = request.args.get('detections', 'true').lower() == 'true'
+        
+        # Use enhanced camera manager for streaming with detection support
         return Response(
-            camera_manager.generate_video_stream(camera_id),
-            mimetype='multipart/x-mixed-replace; boundary=frame'
+            camera_manager.generate_video_stream(camera_id, draw_detections),
+            mimetype='multipart/x-mixed-replace; boundary=frame',
+            headers={
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
         )
         
     except Exception as e:
@@ -531,6 +539,234 @@ def get_system_status():
             'success': False,
             'error': str(e)
         }), 500
+
+# Person Detection API Endpoints
+
+@app.route('/api/cameras/<int:camera_id>/detections', methods=['GET'])
+def get_camera_detections(camera_id):
+    """Get current person detection data for a camera"""
+    try:
+        # Import detection manager here to avoid circular imports
+        from person_detector import detection_manager
+        
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        # Get detection statistics
+        detection_stats = detection_manager.get_detection_stats(camera_id)
+        if not detection_stats:
+            return jsonify({
+                'success': False,
+                'error': 'Detection data not available for this camera'
+            }), 404
+        
+        # Get recent detections
+        limit = int(request.args.get('limit', 10))
+        recent_detections = detection_manager.get_recent_detections(camera_id, limit)
+        
+        # Convert detections to dictionary format
+        detection_data = [detection.to_dict() for detection in recent_detections]
+        
+        return jsonify({
+            'success': True,
+            'camera_id': camera_id,
+            'detection_stats': detection_stats,
+            'recent_detections': detection_data,
+            'detection_count': len(detection_data)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detections for camera {camera_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/cameras/<int:camera_id>/detection-settings', methods=['GET', 'PUT'])
+def camera_detection_settings(camera_id):
+    """Get or update detection settings for a camera"""
+    try:
+        from person_detector import detection_manager
+        
+        # Check if camera exists
+        camera = next((c for c in cameras if c['id'] == camera_id), None)
+        if not camera:
+            return jsonify({
+                'success': False,
+                'error': 'Camera not found'
+            }), 404
+        
+        if request.method == 'GET':
+            # Get current detection settings
+            detection_stats = detection_manager.get_detection_stats(camera_id)
+            if not detection_stats:
+                return jsonify({
+                    'success': False,
+                    'error': 'Detection settings not available for this camera'
+                }), 404
+            
+            return jsonify({
+                'success': True,
+                'camera_id': camera_id,
+                'settings': {
+                    'detection_enabled': detection_stats['detection_enabled'],
+                    'confidence_threshold': detection_stats['confidence_threshold'],
+                    'model_path': detection_stats['model_path']
+                }
+            })
+        
+        elif request.method == 'PUT':
+            # Update detection settings
+            data = request.get_json()
+            if not data:
+                return jsonify({
+                    'success': False,
+                    'error': 'No data provided'
+                }), 400
+            
+            # Update detection enabled/disabled status
+            if 'detection_enabled' in data:
+                enabled = bool(data['detection_enabled'])
+                detection_manager.enable_detection(camera_id, enabled)
+            
+            # Update confidence threshold
+            if 'confidence_threshold' in data:
+                try:
+                    threshold = float(data['confidence_threshold'])
+                    if 0.0 <= threshold <= 1.0:
+                        detector = detection_manager.get_detector(camera_id)
+                        detector.set_confidence_threshold(threshold)
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Confidence threshold must be between 0.0 and 1.0'
+                        }), 400
+                except (ValueError, TypeError):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid confidence threshold value'
+                    }), 400
+            
+            return jsonify({
+                'success': True,
+                'message': 'Detection settings updated successfully'
+            })
+    
+    except Exception as e:
+        logger.error(f"Error handling detection settings for camera {camera_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detections/summary', methods=['GET'])
+def get_detection_summary():
+    """Get detection summary for all cameras"""
+    try:
+        from person_detector import detection_manager
+        
+        summary = {
+            'total_cameras': len(cameras),
+            'detection_enabled_cameras': 0,
+            'total_persons_detected': 0,
+            'cameras_with_recent_activity': 0,
+            'camera_summaries': {}
+        }
+        
+        for camera in cameras:
+            camera_id = camera['id']
+            detection_stats = detection_manager.get_detection_stats(camera_id)
+            
+            if detection_stats:
+                is_enabled = detection_stats['detection_enabled']
+                total_detections = detection_stats.get('total_detections', 0)
+                recent_detections = len(detection_manager.get_recent_detections(camera_id, 1))
+                
+                if is_enabled:
+                    summary['detection_enabled_cameras'] += 1
+                
+                summary['total_persons_detected'] += total_detections
+                
+                if recent_detections > 0:
+                    summary['cameras_with_recent_activity'] += 1
+                
+                summary['camera_summaries'][camera_id] = {
+                    'camera_name': camera['name'],
+                    'detection_enabled': is_enabled,
+                    'total_detections': total_detections,
+                    'recent_activity': recent_detections > 0,
+                    'last_detection_time': detection_stats.get('last_detection_time')
+                }
+        
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detection summary: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detection/status', methods=['GET'])
+def get_detection_status():
+    """Get global detection system status and model initialization info"""
+    try:
+        from person_detector import detection_manager
+        
+        # Import config values
+        from config import (PERSON_DETECTION_ENABLED, PERSON_DETECTION_MODEL, 
+                          PERSON_DETECTION_CONFIDENCE, PERSON_DETECTION_INTERVAL)
+        
+        status = {
+            'detection_enabled_globally': PERSON_DETECTION_ENABLED,
+            'detection_model': PERSON_DETECTION_MODEL,
+            'detection_confidence': PERSON_DETECTION_CONFIDENCE,
+            'detection_interval': PERSON_DETECTION_INTERVAL,
+            'cameras_with_detection': {},
+            'total_cameras': len(cameras)
+        }
+        
+        # Get status for each camera
+        for camera in cameras:
+            camera_id = camera['id']
+            camera_status = {
+                'camera_name': camera['name'],
+                'has_detector': camera_id in detection_manager.detectors,
+                'detection_enabled': detection_manager.is_detection_enabled(camera_id),
+                'model_initialized': False,
+                'model_status': 'Not created'
+            }
+            
+            if camera_id in detection_manager.detectors:
+                detector = detection_manager.detectors[camera_id]
+                camera_status['model_initialized'] = detector.is_initialized
+                camera_status['model_status'] = 'Initialized' if detector.is_initialized else 'Not initialized'
+                camera_status['model_path'] = detector.model_path
+                camera_status['confidence_threshold'] = detector.confidence_threshold
+                camera_status['detector_stats'] = detector.get_stats()
+                
+            status['cameras_with_detection'][camera_id] = camera_status
+        
+        return jsonify({
+            'success': True,
+            'detection_system_status': status
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detection status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
