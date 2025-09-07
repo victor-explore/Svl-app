@@ -72,10 +72,7 @@ DATABASE_AUTO_INIT = True                     # Auto-initialize database on star
 # Image Storage Settings
 DETECTION_IMAGE_STORAGE_ENABLED = True        # Enable saving detection images to disk
 DETECTION_IMAGE_BASE_PATH = "detection_images"  # Base directory for detection images
-DETECTION_SAVE_FULL_FRAMES = True            # Save full frame images with annotations
-DETECTION_SAVE_PERSON_CROPS = True           # Save cropped person images
-DETECTION_IMAGE_QUALITY_FULL = 95            # JPEG quality for full frame images (0-100)
-DETECTION_IMAGE_QUALITY_CROP = 90            # JPEG quality for person crops (0-100)
+DETECTION_IMAGE_QUALITY = 95                  # JPEG quality for detection images (0-100)
 
 # Database Maintenance Settings
 DATABASE_CLEANUP_ENABLED = False              # Enable automatic cleanup of old records

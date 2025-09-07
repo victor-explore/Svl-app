@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Tuple, Optional, List
 from PIL import Image, ImageDraw, ImageFont
 import logging
+from config import DETECTION_IMAGE_QUALITY
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class DetectionImageStorage:
                 frame = self._add_detection_annotations(frame, detections, timestamp)
             
             # Save image with high quality
-            success = cv2.imwrite(full_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+            success = cv2.imwrite(full_path, frame, [cv2.IMWRITE_JPEG_QUALITY, DETECTION_IMAGE_QUALITY])
             
             if success:
                 # Return relative path from base storage directory
@@ -110,67 +111,6 @@ class DetectionImageStorage:
                 
         except Exception as e:
             logger.error(f"Error saving full frame image: {e}")
-            return None
-    
-    def save_person_crop(self, frame: np.ndarray, bbox: List[float], 
-                        camera_id: int, camera_name: str, 
-                        timestamp: datetime, confidence: float) -> str:
-        """
-        Save cropped person image from detection bounding box
-        
-        Args:
-            frame: OpenCV frame (BGR format)
-            bbox: Bounding box coordinates [x1, y1, x2, y2]
-            camera_id: Camera identifier
-            camera_name: Camera name
-            timestamp: Detection timestamp
-            confidence: Detection confidence score
-        
-        Returns:
-            Relative path to saved cropped image
-        """
-        try:
-            # Get date-based directory
-            date_dir = self.get_date_directory(timestamp)
-            
-            # Generate filename
-            filename = self.generate_filename(camera_id, camera_name, timestamp, "person")
-            full_path = os.path.join(date_dir, filename)
-            
-            # Extract bounding box coordinates
-            x1, y1, x2, y2 = [int(coord) for coord in bbox]
-            
-            # Ensure coordinates are within frame bounds
-            height, width = frame.shape[:2]
-            x1 = max(0, min(x1, width - 1))
-            y1 = max(0, min(y1, height - 1))
-            x2 = max(x1 + 1, min(x2, width))
-            y2 = max(y1 + 1, min(y2, height))
-            
-            # Crop person region
-            person_crop = frame[y1:y2, x1:x2]
-            
-            if person_crop.size == 0:
-                logger.warning(f"Empty crop region for bbox {bbox}")
-                return None
-            
-            # Add confidence label to cropped image
-            person_crop = self._add_confidence_label(person_crop, confidence)
-            
-            # Save cropped image
-            success = cv2.imwrite(full_path, person_crop, [cv2.IMWRITE_JPEG_QUALITY, 90])
-            
-            if success:
-                # Return relative path from base storage directory
-                relative_path = os.path.relpath(full_path, self.base_storage_path)
-                logger.debug(f"Saved person crop image: {relative_path}")
-                return relative_path
-            else:
-                logger.error(f"Failed to save person crop: {full_path}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"Error saving person crop: {e}")
             return None
     
     def _add_detection_annotations(self, frame: np.ndarray, detections: List, 
@@ -220,33 +160,6 @@ class DetectionImageStorage:
             return frame  # Return original frame on error
         
         return annotated_frame
-    
-    def _add_confidence_label(self, image: np.ndarray, confidence: float) -> np.ndarray:
-        """Add confidence score label to cropped person image"""
-        labeled_image = image.copy()
-        
-        try:
-            label = f"{confidence:.2f}"
-            
-            # Add label at top of image
-            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0]
-            
-            # Draw label background
-            cv2.rectangle(labeled_image, 
-                         (5, 5), 
-                         (15 + label_size[0], 25 + label_size[1]), 
-                         (0, 255, 0), -1)
-            
-            # Draw label text
-            cv2.putText(labeled_image, label, 
-                       (10, 20 + label_size[1]), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-            
-        except Exception as e:
-            logger.error(f"Error adding confidence label: {e}")
-            return image  # Return original image on error
-        
-        return labeled_image
     
     def get_image_path(self, relative_path: str) -> str:
         """Get full path from relative path"""

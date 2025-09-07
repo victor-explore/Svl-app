@@ -25,8 +25,7 @@ class DetectionResult:
         self.frame_height = frame_height
         
         # Storage paths (set after saving to disk)
-        self.full_image_path = None
-        self.person_image_path = None
+        self.image_path = None
         
     def to_dict(self) -> Dict:
         """Convert to dictionary for API responses"""
@@ -36,20 +35,17 @@ class DetectionResult:
             'timestamp': self.timestamp.isoformat(),
             'person_id': self.person_id,
             'frame_dimensions': [self.frame_width, self.frame_height] if self.frame_width else None,
-            'full_image_path': self.full_image_path,
-            'person_image_path': self.person_image_path
+            'image_path': self.image_path
         }
     
-    def to_database_dict(self, camera_id: int, camera_name: str, camera_unique_id: str = None) -> Dict:
+    def to_database_dict(self, camera_id: int, camera_unique_id: str = None) -> Dict:
         """Convert to dictionary format for database storage"""
         return {
             'confidence': self.confidence,
             'bbox': self.bbox,
-            'timestamp': self.timestamp,
             'frame_width': self.frame_width,
             'frame_height': self.frame_height,
-            'full_image_path': self.full_image_path,
-            'person_image_path': self.person_image_path,
+            'image_path': self.image_path,
             'camera_unique_id': camera_unique_id or f"camera_{camera_id}"
         }
 

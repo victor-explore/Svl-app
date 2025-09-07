@@ -53,12 +53,26 @@
                     <form id="addCameraForm">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="form-control">
-                                <label for="cameraName" class="label"><span class="label-text">Camera Name <span class="text-error">*</span></span></label>
-                                <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., UAV Feed, LORROS Feed" required>
+                                <label for="uniqueId" class="label"><span class="label-text">Unique ID <span class="text-error">*</span></span></label>
+                                <input type="text" class="input input-bordered w-full" id="uniqueId" name="uniqueId" 
+                                       placeholder="e.g., camera_lobby_01, cam_entrance_main" 
+                                       pattern="[a-zA-Z0-9_-]+" 
+                                       title="Only letters, numbers, underscores, and hyphens allowed" 
+                                       required>
                             </div>
                             <div class="form-control">
                                 <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
                                 <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream" required>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label for="cameraName" class="label"><span class="label-text">Camera Name</span></label>
+                                <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., UAV Feed, LORROS Feed (Optional)">
+                            </div>
+                            <div class="form-control">
+                                <!-- Empty slot for layout symmetry -->
                             </div>
                         </div>
 
@@ -164,15 +178,22 @@
         addCameraBtn.addEventListener('click', async function() {
             const formData = new FormData(addCameraForm);
             const cameraData = {
-                name: formData.get('cameraName').trim(),
+                name: formData.get('cameraName').trim() || null,
+                unique_id: formData.get('uniqueId').trim(),
                 rtsp_url: formData.get('rtspUrl').trim(),
                 username: formData.get('username').trim(),
                 password: formData.get('password').trim(),
                 auto_start: true
             };
 
-            if (!cameraData.name || !cameraData.rtsp_url) {
-                alert('Please fill in all required fields (Camera Name and RTSP URL).');
+            if (!cameraData.unique_id || !cameraData.rtsp_url) {
+                alert('Please fill in all required fields (Unique ID and RTSP URL).');
+                return;
+            }
+
+            // Validate unique_id format
+            if (!/^[a-zA-Z0-9_-]+$/.test(cameraData.unique_id)) {
+                alert('Unique ID can only contain letters, numbers, underscores, and hyphens.');
                 return;
             }
 

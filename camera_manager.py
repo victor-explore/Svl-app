@@ -358,59 +358,40 @@ class CameraWorker(threading.Thread):
             if DATABASE_ENABLED and hasattr(db_manager, 'initialize') and not db_manager._initialized:
                 db_manager.initialize()
             
-            # Save full frame image with detections (if enabled)
-            full_image_path = None
-            if DETECTION_IMAGE_STORAGE_ENABLED and DETECTION_SAVE_FULL_FRAMES:
+            # Save detection image with annotations (if enabled)
+            image_path = None
+            if DETECTION_IMAGE_STORAGE_ENABLED:
                 try:
-                    full_image_path = image_storage.save_full_frame_image(
+                    image_path = image_storage.save_full_frame_image(
                         frame=frame,
                         camera_id=self.camera_id,
                         camera_name=self.name,
                         timestamp=self._last_frame_time,
                         detections=detections
                     )
-                    if full_image_path:
-                        logger.debug(f"[{self.name}] Saved full frame image: {full_image_path}")
+                    if image_path:
+                        logger.debug(f"[{self.name}] Saved detection image: {image_path}")
                 except Exception as e:
-                    logger.error(f"[{self.name}] Error saving full frame image: {e}")
+                    logger.error(f"[{self.name}] Error saving detection image: {e}")
             
             # Process each detection
             for detection in detections:
                 try:
-                    # Save cropped person image (if enabled)
-                    person_image_path = None
-                    if DETECTION_IMAGE_STORAGE_ENABLED and DETECTION_SAVE_PERSON_CROPS:
-                        try:
-                            person_image_path = image_storage.save_person_crop(
-                                frame=frame,
-                                bbox=detection.bbox,
-                                camera_id=self.camera_id,
-                                camera_name=self.name,
-                                timestamp=detection.timestamp,
-                                confidence=detection.confidence
-                            )
-                            if person_image_path:
-                                logger.debug(f"[{self.name}] Saved person crop: {person_image_path}")
-                        except Exception as e:
-                            logger.error(f"[{self.name}] Error saving person crop: {e}")
-                    
-                    # Update detection object with image paths
-                    detection.full_image_path = full_image_path
-                    detection.person_image_path = person_image_path
+                    # Update detection object with image path
+                    detection.image_path = image_path
                     
                     # Save to database (if enabled)
                     if DATABASE_ENABLED:
                         try:
                             detection_data = detection.to_database_dict(
                                 camera_id=self.camera_id,
-                                camera_name=self.name,
                                 camera_unique_id=f"camera_{self.camera_id}"
                             )
                             detection_data['rtsp_url'] = self.rtsp_url
+                            detection_data['camera_name'] = self.name
                             
                             db_record = db_manager.save_detection(
                                 camera_id=self.camera_id,
-                                camera_name=self.name,
                                 detection_data=detection_data
                             )
                             

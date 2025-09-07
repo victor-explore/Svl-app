@@ -137,10 +137,27 @@ def add_camera():
         data = request.get_json()
         
         # Validate required fields
-        if not data.get('name') or not data.get('rtsp_url'):
+        if not data.get('unique_id') or not data.get('rtsp_url'):
             return jsonify({
                 'success': False,
-                'error': 'Camera name and RTSP URL are required'
+                'error': 'Unique ID and RTSP URL are required'
+            }), 400
+
+        # Validate unique_id format
+        import re
+        unique_id = data.get('unique_id', '').strip()
+        if not re.match(r'^[a-zA-Z0-9_-]+$', unique_id):
+            return jsonify({
+                'success': False,
+                'error': 'Unique ID can only contain letters, numbers, underscores, and hyphens'
+            }), 400
+
+        # Check for duplicate unique_id
+        existing_unique = next((c for c in cameras if c.get('unique_id') == unique_id), None)
+        if existing_unique:
+            return jsonify({
+                'success': False,
+                'error': f'Unique ID already exists: {unique_id}'
             }), 400
         
         # Check for duplicate RTSP URL
@@ -154,7 +171,8 @@ def add_camera():
         # Create new camera
         new_camera = {
             'id': len(cameras) + 1,
-            'name': data['name'],
+            'name': data.get('name') or unique_id,  # Use unique_id as fallback display name
+            'unique_id': unique_id,                 # Mandatory field
             'rtsp_url': data['rtsp_url'],
             'username': data.get('username', ''),
             'password': data.get('password', ''),
@@ -1010,7 +1028,7 @@ def export_detections():
             writer.writerow([
                 'Detection ID', 'Person ID', 'Camera ID', 'Camera Name',
                 'Confidence', 'BBox X1', 'BBox Y1', 'BBox X2', 'BBox Y2',
-                'Detection Time', 'Full Image Path', 'Person Image Path'
+                'Detection Time', 'Image Path'
             ])
             
             # Write detection data
@@ -1019,15 +1037,14 @@ def export_detections():
                     detection.id,
                     detection.person_id,
                     detection.camera_id,
-                    detection.camera_name,
+                    detection.camera.name if detection.camera else 'Unknown',
                     detection.confidence,
                     detection.bbox_x1,
                     detection.bbox_y1,
                     detection.bbox_x2,
                     detection.bbox_y2,
-                    detection.detected_at.isoformat(),
-                    detection.full_image_path or '',
-                    detection.person_image_path or ''
+                    detection.created_at.isoformat(),
+                    detection.image_path or ''
                 ])
             
             # Return CSV file

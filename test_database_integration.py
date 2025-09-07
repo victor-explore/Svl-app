@@ -42,17 +42,15 @@ def test_database_models():
         test_detection_data = {
             'confidence': 0.85,
             'bbox': [100, 150, 250, 400],
-            'timestamp': datetime.now(),
             'frame_width': 1920,
             'frame_height': 1080,
-            'full_image_path': "test/path/to/full_image.jpg",
-            'person_image_path': "test/path/to/person_crop.jpg",
+            'image_path': "test/path/to/image.jpg",
             'camera_unique_id': "test_camera_999"
         }
         
+        test_detection_data['camera_name'] = "Test Camera"
         detection = test_db.save_detection(
             camera_id=999,
-            camera_name="Test Camera",
             detection_data=test_detection_data
         )
         print(f"+ Detection saved with person ID: {detection.person_id}")
@@ -111,21 +109,6 @@ def test_image_storage():
         else:
             print("- Full frame save failed")
             
-        # Test person crop saving
-        bbox = [200, 150, 400, 350]  # x1, y1, x2, y2
-        crop_path = test_storage.save_person_crop(
-            frame=test_frame,
-            bbox=bbox,
-            camera_id=999,
-            camera_name="Test Camera",
-            timestamp=timestamp,
-            confidence=0.85
-        )
-        if crop_path:
-            print(f"+ Person crop saved: {crop_path}")
-        else:
-            print("- Person crop save failed")
-        
         # Test storage statistics
         stats = test_storage.get_storage_stats()
         print(f"+ Storage stats - Total images: {stats.get('total_images', 0)}")
@@ -163,7 +146,7 @@ def test_detection_result():
         
         # Test to_dict method
         dict_data = detection.to_dict()
-        required_fields = ['bbox', 'confidence', 'timestamp', 'person_id', 'frame_dimensions']
+        required_fields = ['bbox', 'confidence', 'person_id', 'frame_dimensions']
         for field in required_fields:
             if field not in dict_data:
                 print(f"- Missing field in to_dict: {field}")
@@ -173,10 +156,9 @@ def test_detection_result():
         # Test to_database_dict method
         db_dict = detection.to_database_dict(
             camera_id=999,
-            camera_name="Test Camera",
             camera_unique_id="test_camera_999"
         )
-        required_db_fields = ['confidence', 'bbox', 'timestamp', 'camera_unique_id']
+        required_db_fields = ['confidence', 'bbox', 'camera_unique_id']
         for field in required_db_fields:
             if field not in db_dict:
                 print(f"- Missing field in to_database_dict: {field}")
@@ -198,15 +180,14 @@ def test_config_settings():
         from config import (
             DATABASE_ENABLED, DATABASE_URL, DATABASE_AUTO_INIT,
             DETECTION_IMAGE_STORAGE_ENABLED, DETECTION_IMAGE_BASE_PATH,
-            DETECTION_SAVE_FULL_FRAMES, DETECTION_SAVE_PERSON_CROPS
+            DETECTION_IMAGE_QUALITY
         )
         
         print(f"+ DATABASE_ENABLED: {DATABASE_ENABLED}")
         print(f"+ DATABASE_URL: {DATABASE_URL}")
         print(f"+ DETECTION_IMAGE_STORAGE_ENABLED: {DETECTION_IMAGE_STORAGE_ENABLED}")
         print(f"+ DETECTION_IMAGE_BASE_PATH: {DETECTION_IMAGE_BASE_PATH}")
-        print(f"+ DETECTION_SAVE_FULL_FRAMES: {DETECTION_SAVE_FULL_FRAMES}")
-        print(f"+ DETECTION_SAVE_PERSON_CROPS: {DETECTION_SAVE_PERSON_CROPS}")
+        print(f"+ DETECTION_IMAGE_QUALITY: {DETECTION_IMAGE_QUALITY}")
         
         return True
         
