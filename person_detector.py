@@ -15,17 +15,42 @@ logger = logging.getLogger(__name__)
 class DetectionResult:
     """Represents a single person detection result"""
     
-    def __init__(self, bbox: List[float], confidence: float, timestamp: datetime):
+    def __init__(self, bbox: List[float], confidence: float, timestamp: datetime,
+                 person_id: str = None, frame_width: int = None, frame_height: int = None):
         self.bbox = bbox  # [x1, y1, x2, y2]
         self.confidence = confidence
         self.timestamp = timestamp
+        self.person_id = person_id  # Unique identifier for this detection
+        self.frame_width = frame_width
+        self.frame_height = frame_height
+        
+        # Storage paths (set after saving to disk)
+        self.full_image_path = None
+        self.person_image_path = None
         
     def to_dict(self) -> Dict:
         """Convert to dictionary for API responses"""
         return {
             'bbox': self.bbox,
             'confidence': round(self.confidence, 3),
-            'timestamp': self.timestamp.isoformat()
+            'timestamp': self.timestamp.isoformat(),
+            'person_id': self.person_id,
+            'frame_dimensions': [self.frame_width, self.frame_height] if self.frame_width else None,
+            'full_image_path': self.full_image_path,
+            'person_image_path': self.person_image_path
+        }
+    
+    def to_database_dict(self, camera_id: int, camera_name: str, camera_unique_id: str = None) -> Dict:
+        """Convert to dictionary format for database storage"""
+        return {
+            'confidence': self.confidence,
+            'bbox': self.bbox,
+            'timestamp': self.timestamp,
+            'frame_width': self.frame_width,
+            'frame_height': self.frame_height,
+            'full_image_path': self.full_image_path,
+            'person_image_path': self.person_image_path,
+            'camera_unique_id': camera_unique_id or f"camera_{camera_id}"
         }
 
 class PersonDetector:
@@ -130,7 +155,17 @@ class PersonDetector:
                         # Filter by confidence threshold
                         if confidence >= self.confidence_threshold:
                             bbox = boxes[i].tolist()  # [x1, y1, x2, y2]
-                            detection = DetectionResult(bbox, confidence, current_time)
+                            
+                            # Get frame dimensions
+                            frame_height, frame_width = frame.shape[:2]
+                            
+                            detection = DetectionResult(
+                                bbox=bbox, 
+                                confidence=confidence, 
+                                timestamp=current_time,
+                                frame_width=frame_width,
+                                frame_height=frame_height
+                            )
                             detections.append(detection)
                             person_count += 1
             

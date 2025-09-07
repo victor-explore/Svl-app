@@ -63,3 +63,21 @@ PERSON_DETECTION_MAX_HISTORY = 100            # Maximum detection results to kee
 PERSON_DETECTION_DRAW_BOXES = True            # Draw bounding boxes on streamed video
 PERSON_DETECTION_BOX_COLOR = (0, 255, 0)      # Bounding box color (BGR format)
 PERSON_DETECTION_BOX_THICKNESS = 2            # Bounding box line thickness
+
+# Database Storage Settings
+DATABASE_ENABLED = True                        # Enable database storage of detections
+DATABASE_URL = "sqlite:///detection_records.db"  # Database connection string
+DATABASE_AUTO_INIT = True                     # Auto-initialize database on startup
+
+# Image Storage Settings
+DETECTION_IMAGE_STORAGE_ENABLED = True        # Enable saving detection images to disk
+DETECTION_IMAGE_BASE_PATH = "detection_images"  # Base directory for detection images
+DETECTION_SAVE_FULL_FRAMES = True            # Save full frame images with annotations
+DETECTION_SAVE_PERSON_CROPS = True           # Save cropped person images
+DETECTION_IMAGE_QUALITY_FULL = 95            # JPEG quality for full frame images (0-100)
+DETECTION_IMAGE_QUALITY_CROP = 90            # JPEG quality for person crops (0-100)
+
+# Database Maintenance Settings
+DATABASE_CLEANUP_ENABLED = False              # Enable automatic cleanup of old records
+DATABASE_CLEANUP_DAYS = 30                   # Days to keep detection records
+DATABASE_CLEANUP_INTERVAL_HOURS = 24         # Hours between cleanup runs

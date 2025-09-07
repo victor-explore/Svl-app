@@ -767,6 +767,319 @@ def get_detection_status():
             'error': str(e)
         }), 500
 
+# Database Storage API Endpoints
+
+@app.route('/api/detections/history', methods=['GET'])
+def get_detection_history():
+    """Get detection history with optional filters"""
+    try:
+        # Import database manager only when needed
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+        
+        from database import db_manager
+        
+        # Get query parameters
+        camera_id = request.args.get('camera_id', type=int)
+        limit = request.args.get('limit', 50, type=int)
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        # Parse date parameters if provided
+        start_datetime = None
+        end_datetime = None
+        if start_date:
+            try:
+                start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid start_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'
+                }), 400
+        
+        if end_date:
+            try:
+                end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid end_date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)'
+                }), 400
+        
+        # Get detection history
+        detections = db_manager.get_detection_history(
+            camera_id=camera_id,
+            limit=limit,
+            start_date=start_datetime,
+            end_date=end_datetime
+        )
+        
+        # Convert to dictionary format
+        detection_data = [detection.to_dict() for detection in detections]
+        
+        return jsonify({
+            'success': True,
+            'detections': detection_data,
+            'total_returned': len(detection_data),
+            'filters': {
+                'camera_id': camera_id,
+                'limit': limit,
+                'start_date': start_date,
+                'end_date': end_date
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detection history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detections/images/<path:image_path>')
+def serve_detection_image(image_path):
+    """Serve detection images from storage"""
+    try:
+        from config import DETECTION_IMAGE_STORAGE_ENABLED
+        if not DETECTION_IMAGE_STORAGE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Image storage is not enabled'
+            }), 400
+        
+        from detection_storage import image_storage
+        from flask import send_file
+        
+        # Get full path to image
+        full_path = image_storage.get_image_path(image_path)
+        
+        # Check if file exists
+        if not image_storage.image_exists(image_path):
+            return jsonify({
+                'success': False,
+                'error': 'Image not found'
+            }), 404
+        
+        # Serve the image file
+        return send_file(full_path, mimetype='image/jpeg')
+        
+    except Exception as e:
+        logger.error(f"Error serving detection image {image_path}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detections/stats', methods=['GET'])
+def get_detection_statistics():
+    """Get detection statistics from database"""
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+        
+        from database import db_manager
+        
+        camera_id = request.args.get('camera_id', type=int)
+        
+        # Get detection statistics
+        stats = db_manager.get_detection_stats(camera_id)
+        
+        # Get additional system statistics
+        system_stats = {}
+        if not camera_id:  # Get system-wide stats only if no specific camera requested
+            try:
+                # Get stats for all cameras
+                all_stats = []
+                for camera in cameras:
+                    cam_stats = db_manager.get_detection_stats(camera['id'])
+                    cam_stats['camera_name'] = camera['name']
+                    all_stats.append(cam_stats)
+                
+                system_stats = {
+                    'total_cameras': len(cameras),
+                    'cameras_with_detections': len([s for s in all_stats if s['total_detections'] > 0]),
+                    'system_total_detections': sum(s['total_detections'] for s in all_stats),
+                    'camera_stats': all_stats
+                }
+            except Exception as e:
+                logger.warning(f"Error getting system stats: {e}")
+        
+        return jsonify({
+            'success': True,
+            'detection_stats': stats,
+            'system_stats': system_stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting detection statistics: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detections/export', methods=['GET'])
+def export_detections():
+    """Export detection data in CSV or JSON format"""
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+        
+        from database import db_manager
+        import csv
+        import io
+        
+        # Get query parameters
+        format_type = request.args.get('format', 'json').lower()
+        camera_id = request.args.get('camera_id', type=int)
+        limit = request.args.get('limit', 1000, type=int)
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+        
+        if format_type not in ['json', 'csv']:
+            return jsonify({
+                'success': False,
+                'error': 'Format must be either "json" or "csv"'
+            }), 400
+        
+        # Parse date parameters if provided
+        start_datetime = None
+        end_datetime = None
+        if start_date:
+            try:
+                start_datetime = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid start_date format'
+                }), 400
+        
+        if end_date:
+            try:
+                end_datetime = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid end_date format'
+                }), 400
+        
+        # Get detection data
+        detections = db_manager.get_detection_history(
+            camera_id=camera_id,
+            limit=limit,
+            start_date=start_datetime,
+            end_date=end_datetime
+        )
+        
+        if format_type == 'json':
+            # Export as JSON
+            detection_data = [detection.to_dict() for detection in detections]
+            return jsonify({
+                'success': True,
+                'detections': detection_data,
+                'total_exported': len(detection_data)
+            })
+        
+        else:  # CSV export
+            # Create CSV content
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow([
+                'Detection ID', 'Person ID', 'Camera ID', 'Camera Name',
+                'Confidence', 'BBox X1', 'BBox Y1', 'BBox X2', 'BBox Y2',
+                'Detection Time', 'Full Image Path', 'Person Image Path'
+            ])
+            
+            # Write detection data
+            for detection in detections:
+                writer.writerow([
+                    detection.id,
+                    detection.person_id,
+                    detection.camera_id,
+                    detection.camera_name,
+                    detection.confidence,
+                    detection.bbox_x1,
+                    detection.bbox_y1,
+                    detection.bbox_x2,
+                    detection.bbox_y2,
+                    detection.detected_at.isoformat(),
+                    detection.full_image_path or '',
+                    detection.person_image_path or ''
+                ])
+            
+            # Return CSV file
+            csv_content = output.getvalue()
+            output.close()
+            
+            return Response(
+                csv_content,
+                mimetype='text/csv',
+                headers={'Content-Disposition': f'attachment; filename=detections_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'}
+            )
+        
+    except Exception as e:
+        logger.error(f"Error exporting detections: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detections/storage-stats', methods=['GET'])
+def get_storage_statistics():
+    """Get image storage statistics"""
+    try:
+        from config import DETECTION_IMAGE_STORAGE_ENABLED, DATABASE_ENABLED
+        
+        stats = {
+            'database_enabled': DATABASE_ENABLED,
+            'image_storage_enabled': DETECTION_IMAGE_STORAGE_ENABLED
+        }
+        
+        # Get database stats
+        if DATABASE_ENABLED:
+            try:
+                from database import db_manager
+                db_stats = db_manager.get_detection_stats()
+                stats['database_stats'] = db_stats
+            except Exception as e:
+                logger.warning(f"Error getting database stats: {e}")
+                stats['database_stats'] = {'error': str(e)}
+        
+        # Get image storage stats
+        if DETECTION_IMAGE_STORAGE_ENABLED:
+            try:
+                from detection_storage import image_storage
+                storage_stats = image_storage.get_storage_stats()
+                stats['image_storage_stats'] = storage_stats
+            except Exception as e:
+                logger.warning(f"Error getting image storage stats: {e}")
+                stats['image_storage_stats'] = {'error': str(e)}
+        
+        return jsonify({
+            'success': True,
+            'storage_statistics': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting storage statistics: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

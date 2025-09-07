@@ -52,13 +52,13 @@
                 </div>
             </figure>
             
-            <!-- Person Detection Footer -->
+            <!-- Soldier Detection Footer -->
             <div class="card-footer px-4 py-3 border-t border-base-300 bg-base-50">
                 <div class="flex justify-between items-center">
                     <!-- Person Count Display -->
                     <div class="flex items-center space-x-2">
                         <span class="text-sm text-base-content/70">👥</span>
-                        <span class="text-sm font-medium" id="person-count-{{ camera.id }}">0 persons</span>
+                        <span class="text-sm font-medium" id="person-count-{{ camera.id }}">0 Soldiers</span>
                     </div>
                     
                     <!-- Detection Controls -->
@@ -448,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const personCountElement = document.getElementById(`person-count-${cameraId}`);
                 
                 if (personCountElement) {
-                    const text = count === 1 ? '1 person' : `${count} persons`;
+                    const text = count === 1 ? '1 Soldier' : `${count} Soldiers`;
                     personCountElement.textContent = text;
                     
                     // Add visual indicator for recent detections
