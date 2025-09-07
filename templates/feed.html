@@ -21,7 +21,7 @@
             
             <!-- Video Area -->
             <figure class="h-96 w-full {% if camera.status == 'online' %}bg-base-300{% elif camera.status == 'offline' %}bg-base-100{% else %}bg-base-100{% endif %}">
-                <div class="h-full w-full relative">
+                <div class="h-full w-full relative" data-current-status="{{ camera.status }}">
                     {% if camera.status == 'online' %}
                         <img src="/api/cameras/{{ camera.id }}/stream" 
                              class="w-full h-full object-cover"
@@ -63,8 +63,6 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const cameraGrid = document.getElementById('cameraGrid');
-    
-    let updateInterval;
 
     // Initialize real-time updates
     startRealTimeUpdates();
@@ -158,20 +156,105 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     function startRealTimeUpdates() {
-        updateRealTimeStats();
-        updateInterval = setInterval(updateRealTimeStats, 5000); // Update every 5 seconds (reduced from 3s for better performance)
+        // Replace polling with Server-Sent Events for real-time status updates
+        startSSEConnection();
     }
 
-    async function updateRealTimeStats() {
-        try {
-            const response = await fetch('/api/system/status');
-            const result = await response.json();
-            
-            if (result.success) {
-                // Footer removed - no stats to update
+    function startSSEConnection() {
+        console.log('[SSE] Establishing connection to status stream');
+        
+        const eventSource = new EventSource('/api/status/stream');
+        
+        eventSource.onopen = function(event) {
+            console.log('[SSE] Connection opened');
+        };
+        
+        eventSource.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'camera_status') {
+                    updateCameraStatuses(data.cameras);
+                }
+            } catch (error) {
+                console.error('[SSE] Error parsing status data:', error);
             }
-        } catch (error) {
-            console.error('Error updating real-time stats:', error);
+        };
+        
+        eventSource.onerror = function(event) {
+            console.error('[SSE] Connection error:', event);
+            // Reconnect after 5 seconds if connection fails
+            eventSource.close();
+            setTimeout(startSSEConnection, 5000);
+        };
+        
+        // Store reference for cleanup
+        window.sseConnection = eventSource;
+    }
+
+    function updateCameraStatuses(cameras) {
+        cameras.forEach(camera => {
+            updateCameraUI(camera.id, camera.status, camera.name);
+        });
+    }
+
+    function updateCameraUI(cameraId, status, cameraName) {
+        const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`);
+        if (!cameraCard) return;
+        
+        const videoArea = cameraCard.querySelector('figure > div');
+        if (!videoArea) return;
+        
+        // Only update UI if status has actually changed
+        const currentStatus = videoArea.getAttribute('data-current-status');
+        if (currentStatus === status) return;
+        
+        console.log(`[SSE] Updating camera ${cameraId} (${cameraName}) status: ${currentStatus} -> ${status}`);
+        videoArea.setAttribute('data-current-status', status);
+        
+        if (status === 'online') {
+            // Camera is online with frames ready - show video stream
+            videoArea.innerHTML = `
+                <img src="/api/cameras/${cameraId}/stream" 
+                     class="w-full h-full object-cover"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                     alt="Live stream from ${cameraName}">
+                <div class="hidden items-center justify-center h-full w-full text-base-content">
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">📺</div>
+                        <div class="text-sm">Stream Error</div>
+                    </div>
+                </div>
+            `;
+        } else if (status === 'connecting') {
+            // Camera is connecting - show spinner
+            videoArea.innerHTML = `
+                <div class="flex items-center justify-center h-full w-full text-base-content">
+                    <div class="text-center">
+                        <span class="loading loading-spinner loading-xl"></span>
+                        <div class="text-sm mt-2">Connecting</div>
+                    </div>
+                </div>
+            `;
+        } else if (status === 'offline') {
+            // Camera is offline - show offline indicator
+            videoArea.innerHTML = `
+                <div class="flex items-center justify-center h-full w-full text-base-content">
+                    <div class="text-center">
+                        <span class="loading loading-dots loading-xl"></span>
+                        <div class="text-sm mt-2">Offline</div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Unknown status - show error
+            videoArea.innerHTML = `
+                <div class="flex items-center justify-center h-full w-full text-base-content">
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">⚠️</div>
+                        <div class="text-sm">Unknown Status: ${status}</div>
+                    </div>
+                </div>
+            `;
         }
     }
 
@@ -203,10 +286,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 4000);
     }
 
-    // Cleanup interval on page unload
+    // Cleanup SSE connection on page unload
     window.addEventListener('beforeunload', function() {
-        if (updateInterval) {
-            clearInterval(updateInterval);
+        if (window.sseConnection) {
+            console.log('[SSE] Closing connection due to page unload');
+            window.sseConnection.close();
         }
     });
 });

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, Response
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 import time
 import random
 import cv2
@@ -439,9 +439,60 @@ def stream_camera(camera_id):
 
 # New Enhanced API Endpoints
 
-
-
-
+@app.route('/api/status/stream')
+def status_stream():
+    """Server-Sent Events for real-time camera status updates"""
+    import json
+    
+    def event_stream():
+        logger.info("[SSE] Client connected to status stream")
+        try:
+            while True:
+                # Get current status of all cameras
+                cameras_status = []
+                for camera in cameras:
+                    camera_status = camera_manager.get_camera_status(camera['id'])
+                    if camera_status:
+                        cameras_status.append({
+                            'id': camera['id'],
+                            'name': camera['name'],
+                            'status': camera_status['status'],
+                            'frames_captured': camera_status.get('frames_captured', 0),
+                            'fps': camera_status.get('fps', 0)
+                        })
+                    else:
+                        # Camera manager doesn't have this camera, mark as offline
+                        cameras_status.append({
+                            'id': camera['id'],
+                            'name': camera['name'],
+                            'status': 'offline',
+                            'frames_captured': 0,
+                            'fps': 0
+                        })
+                
+                # Send status update
+                data = json.dumps({
+                    'type': 'camera_status',
+                    'timestamp': time.time(),
+                    'cameras': cameras_status
+                })
+                yield f"data: {data}\n\n"
+                
+                # Update every 1 second for real-time responsiveness
+                time.sleep(1)
+                
+        except GeneratorExit:
+            logger.info("[SSE] Client disconnected from status stream")
+        except Exception as e:
+            logger.error(f"[SSE] Error in status stream: {e}")
+    
+    return Response(stream_with_context(event_stream()),
+                   mimetype='text/event-stream',
+                   headers={
+                       'Cache-Control': 'no-cache',
+                       'Connection': 'keep-alive',
+                       'X-Accel-Buffering': 'no'  # Disable nginx buffering
+                   })
 
 @app.route('/api/system/status', methods=['GET'])
 def get_system_status():

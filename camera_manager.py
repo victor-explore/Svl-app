@@ -155,11 +155,12 @@ class CameraWorker(threading.Thread):
             return
 
         logger.info(f"[{self.name}] Successfully connected to RTSP stream")
-        self.set_status(CameraStatus.ONLINE)
+        # Don't set ONLINE yet - wait for first frame
         self._connection_attempts = 0  # Reset on successful connection
 
         consecutive_failures = 0
         max_consecutive_failures = 10
+        first_frame_captured = False
         
         # Frame capture loop
         while not self._stop_event.is_set():
@@ -173,6 +174,12 @@ class CameraWorker(threading.Thread):
                         break
                     time.sleep(0.1)
                     continue
+                
+                # Only set ONLINE when first frame is successfully captured
+                if not first_frame_captured:
+                    logger.info(f"[{self.name}] First frame captured, camera is now ONLINE")
+                    self.set_status(CameraStatus.ONLINE)
+                    first_frame_captured = True
                 
                 consecutive_failures = 0
                 self.frames_captured += 1
