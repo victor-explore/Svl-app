@@ -89,8 +89,12 @@
 
 </div>
 
-
-
+<!-- Floating Action Button (FAB) for Adding Camera -->
+<div class="fab fab-flower">
+  <div tabindex="0" role="button" class="btn btn-circle btn-lg" id="addCameraFab" aria-label="Add new camera">
+    +
+  </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -101,6 +105,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize person detection
     initializePersonDetection();
+
+    // Initialize FAB functionality
+    initializeFAB();
 
 
 
@@ -483,6 +490,30 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error(`[Detection] Error updating data for camera ${cameraId}:`, error);
         }
+    }
+
+    // FAB (Floating Action Button) functionality
+    function initializeFAB() {
+        const addCameraFab = document.getElementById('addCameraFab');
+        
+        if (!addCameraFab) {
+            console.warn('[FAB] Add camera button not found');
+            return;
+        }
+        
+        // Handle add camera button click - open the existing modal
+        addCameraFab.addEventListener('click', function() {
+            console.log('[FAB] Add camera button clicked');
+            
+            const addCameraModal = document.getElementById('addCameraModal');
+            if (addCameraModal) {
+                addCameraModal.showModal();
+            } else {
+                console.error('[FAB] Add camera modal not found');
+            }
+        });
+        
+        console.log('[FAB] FAB initialized successfully');
     }
 
     // Cleanup SSE connection on page unload
