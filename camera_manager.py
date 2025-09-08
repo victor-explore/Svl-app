@@ -76,6 +76,10 @@ class CameraWorker(threading.Thread):
         # Storage throttling tracking
         self.last_storage_time = 0  # Timestamp of last storage save
         
+        # OpenCV VideoCapture object for proper cleanup
+        self._video_capture = None
+        self._capture_lock = threading.Lock()
+        
         # Get detector instance from global manager
         if self.detection_enabled:
             detection_manager.get_detector(
@@ -190,6 +194,10 @@ class CameraWorker(threading.Thread):
         self._connection_attempts += 1
         
         cap = self._setup_opencv_capture()
+        
+        # Store capture object for proper cleanup
+        with self._capture_lock:
+            self._video_capture = cap
         
         if not cap.isOpened():
             error_msg = f"Could not open RTSP stream (attempt {self._connection_attempts})"
@@ -315,6 +323,10 @@ class CameraWorker(threading.Thread):
 
         cap.release()
         
+        # Clear stored capture object
+        with self._capture_lock:
+            self._video_capture = None
+        
         if not self._stop_event.is_set():
             # Connection lost, will retry
             self.set_status(CameraStatus.OFFLINE, "Connection lost")
@@ -411,9 +423,19 @@ class CameraWorker(threading.Thread):
             logger.error(f"[{self.name}] Storage error traceback: {traceback.format_exc()}")
 
     def stop(self):
-        """Stop the camera worker thread"""
+        """Stop the camera worker thread with proper resource cleanup"""
         logger.info(f"[{self.name}] Stopping camera worker...")
         self._stop_event.set()
+        
+        # Force release VideoCapture if still active
+        with self._capture_lock:
+            if self._video_capture is not None:
+                try:
+                    logger.info(f"[{self.name}] Force releasing VideoCapture...")
+                    self._video_capture.release()
+                    self._video_capture = None
+                except Exception as e:
+                    logger.error(f"[{self.name}] Error releasing VideoCapture: {e}")
         
         # Clear the frame queue
         while not self.frame_queue.empty():

@@ -132,8 +132,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get camera name for feedback
             const cameraName = cameraCard.querySelector('.font-medium').textContent;
             
-            // 1. Immediate UI feedback - show deleting state
+            // 1. Immediate UI feedback - show deleting state and stop polling
             showDeletingState(cameraCard, cameraName);
+            cameraCard.setAttribute('data-deleted', 'true'); // Stop polling immediately
             
             try {
                 const response = await fetch(`/api/cameras/${cameraId}`, {
@@ -151,12 +152,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     // Remove from deleting set and restore camera
                     deletingCameras.delete(cameraId);
+                    cameraCard.removeAttribute('data-deleted'); // Resume polling
                     restoreCameraCard(cameraCard);
                     showNotification(`Error: ${result.error}`, 'danger');
                 }
             } catch (error) {
                 // Remove from deleting set and restore camera
                 deletingCameras.delete(cameraId);
+                cameraCard.removeAttribute('data-deleted'); // Resume polling
                 restoreCameraCard(cameraCard);
                 showNotification(`Network error: ${error.message}`, 'danger');
             }
@@ -429,8 +432,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     async function updateDetectionData() {
-        // Get all camera IDs from the page
-        const cameraCards = document.querySelectorAll('[data-camera-id]');
+        // Get all camera IDs from the page, excluding deleted ones
+        const cameraCards = document.querySelectorAll('[data-camera-id]:not([data-deleted="true"])');
         
         for (const card of cameraCards) {
             const cameraId = card.getAttribute('data-camera-id');
@@ -441,6 +444,18 @@ document.addEventListener('DOMContentLoaded', function() {
     async function updateCameraDetectionData(cameraId) {
         try {
             const response = await fetch(`/api/cameras/${cameraId}/detections?limit=1`);
+            
+            // Handle camera not found (404) - stop polling this camera
+            if (response.status === 404) {
+                console.log(`[Detection] Camera ${cameraId} not found, removing from polling`);
+                // Mark camera card as deleted to prevent further polling
+                const cameraCard = document.querySelector(`[data-camera-id="${cameraId}"]`);
+                if (cameraCard) {
+                    cameraCard.setAttribute('data-deleted', 'true');
+                }
+                return;
+            }
+            
             const result = await response.json();
             
             if (result.success) {

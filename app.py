@@ -442,7 +442,8 @@ def stream_camera(camera_id):
         # Check if camera exists
         camera = next((c for c in cameras if c['id'] == camera_id), None)
         if not camera:
-            print(f"[ERROR] Camera with ID {camera_id} not found")
+            # Log at debug level to reduce noise
+            logger.debug(f"Stream request for non-existent camera {camera_id}")
             return jsonify({
                 'success': False,
                 'error': 'Camera not found'
@@ -572,6 +573,8 @@ def get_camera_detections(camera_id):
         # Check if camera exists
         camera = next((c for c in cameras if c['id'] == camera_id), None)
         if not camera:
+            # Log at debug level to reduce noise from frontend polling deleted cameras
+            logger.debug(f"Detection request for non-existent camera {camera_id}")
             return jsonify({
                 'success': False,
                 'error': 'Camera not found'
