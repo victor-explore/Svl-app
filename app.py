@@ -5,6 +5,8 @@ import cv2
 import atexit
 import threading
 import logging
+import json
+import os
 from camera_manager import EnhancedCameraManager, CameraStatus
 from config import *
 
@@ -116,6 +118,283 @@ def sensor_analytics():
 def tracking():
     """Tracking page with timeline"""
     return render_template('tracking.html')
+
+@app.route('/settings')
+def settings():
+    """Settings page for runtime configuration"""
+    return render_template('settings.html')
+
+# Settings management utilities
+SETTINGS_FILE = 'user_settings.json'
+
+def load_user_settings():
+    """Load user settings from file, return empty dict if not found"""
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, 'r') as f:
+                return json.load(f)
+        return {}
+    except Exception as e:
+        logger.error(f"Error loading user settings: {e}")
+        return {}
+
+def save_user_settings(settings):
+    """Save user settings to file"""
+    try:
+        with open(SETTINGS_FILE, 'w') as f:
+            json.dump(settings, f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving user settings: {e}")
+        return False
+
+def get_runtime_settings():
+    """Get current runtime settings (merged defaults + user overrides)"""
+    # Define runtime-changeable settings with their current values
+    user_settings = load_user_settings()
+    
+    runtime_settings = {
+        # RTSP Connection Settings
+        'rtsp_timeout_ms': user_settings.get('rtsp_timeout_ms', RTSP_TIMEOUT_MS),
+        'rtsp_read_timeout_ms': user_settings.get('rtsp_read_timeout_ms', RTSP_READ_TIMEOUT_MS),
+        'rtsp_reconnect_delay': user_settings.get('rtsp_reconnect_delay', RTSP_RECONNECT_DELAY),
+        'rtsp_max_reconnect_attempts': user_settings.get('rtsp_max_reconnect_attempts', RTSP_MAX_RECONNECT_ATTEMPTS),
+        'rtsp_reconnect_delay_max': user_settings.get('rtsp_reconnect_delay_max', RTSP_RECONNECT_DELAY_MAX),
+        
+        # Frame Processing Settings  
+        'frame_queue_size': user_settings.get('frame_queue_size', FRAME_QUEUE_SIZE),
+        'processing_fps': user_settings.get('processing_fps', PROCESSING_FPS),
+        'jpeg_quality': user_settings.get('jpeg_quality', JPEG_QUALITY),
+        
+        # Performance Settings
+        'max_cameras': user_settings.get('max_cameras', MAX_CAMERAS),
+        'thread_cleanup_timeout': user_settings.get('thread_cleanup_timeout', THREAD_CLEANUP_TIMEOUT),
+        'status_update_interval': user_settings.get('status_update_interval', STATUS_UPDATE_INTERVAL),
+        
+        # Camera Management Settings
+        'delete_strategy': user_settings.get('delete_strategy', DELETE_STRATEGY),
+        'show_deletion_feedback_ms': user_settings.get('show_deletion_feedback_ms', SHOW_DELETION_FEEDBACK_MS),
+        
+        # Person Detection Settings
+        'person_detection_enabled': user_settings.get('person_detection_enabled', PERSON_DETECTION_ENABLED),
+        'person_detection_confidence': user_settings.get('person_detection_confidence', PERSON_DETECTION_CONFIDENCE),
+        'person_detection_interval': user_settings.get('person_detection_interval', PERSON_DETECTION_INTERVAL),
+        'person_detection_draw_boxes': user_settings.get('person_detection_draw_boxes', PERSON_DETECTION_DRAW_BOXES),
+        'person_detection_resize_enabled': user_settings.get('person_detection_resize_enabled', PERSON_DETECTION_RESIZE_ENABLED),
+        'person_detection_resize_width': user_settings.get('person_detection_resize_width', PERSON_DETECTION_RESIZE_WIDTH),
+        'person_detection_resize_height': user_settings.get('person_detection_resize_height', PERSON_DETECTION_RESIZE_HEIGHT),
+        
+        # Database & Storage Settings
+        'database_enabled': user_settings.get('database_enabled', DATABASE_ENABLED),
+        'detection_image_storage_enabled': user_settings.get('detection_image_storage_enabled', DETECTION_IMAGE_STORAGE_ENABLED),
+        'detection_image_quality': user_settings.get('detection_image_quality', DETECTION_IMAGE_QUALITY),
+        'database_cleanup_enabled': user_settings.get('database_cleanup_enabled', DATABASE_CLEANUP_ENABLED),
+        'database_cleanup_days': user_settings.get('database_cleanup_days', DATABASE_CLEANUP_DAYS),
+        'detection_storage_interval_seconds': user_settings.get('detection_storage_interval_seconds', DETECTION_STORAGE_INTERVAL_SECONDS),
+    }
+    
+    return runtime_settings
+
+def apply_runtime_settings(settings):
+    """Apply settings that can be changed at runtime"""
+    # Update global variables that affect new operations
+    global RTSP_TIMEOUT_MS, RTSP_READ_TIMEOUT_MS, RTSP_RECONNECT_DELAY
+    global RTSP_MAX_RECONNECT_ATTEMPTS, RTSP_RECONNECT_DELAY_MAX
+    global FRAME_QUEUE_SIZE, PROCESSING_FPS, JPEG_QUALITY
+    global MAX_CAMERAS, THREAD_CLEANUP_TIMEOUT, STATUS_UPDATE_INTERVAL
+    global DELETE_STRATEGY, SHOW_DELETION_FEEDBACK_MS
+    global PERSON_DETECTION_ENABLED, PERSON_DETECTION_CONFIDENCE, PERSON_DETECTION_INTERVAL
+    global PERSON_DETECTION_DRAW_BOXES, PERSON_DETECTION_RESIZE_ENABLED
+    global PERSON_DETECTION_RESIZE_WIDTH, PERSON_DETECTION_RESIZE_HEIGHT
+    global DATABASE_ENABLED, DETECTION_IMAGE_STORAGE_ENABLED, DETECTION_IMAGE_QUALITY
+    global DATABASE_CLEANUP_ENABLED, DATABASE_CLEANUP_DAYS, DETECTION_STORAGE_INTERVAL_SECONDS
+    
+    # RTSP Settings (affect new connections)
+    RTSP_TIMEOUT_MS = settings['rtsp_timeout_ms']
+    RTSP_READ_TIMEOUT_MS = settings['rtsp_read_timeout_ms'] 
+    RTSP_RECONNECT_DELAY = settings['rtsp_reconnect_delay']
+    RTSP_MAX_RECONNECT_ATTEMPTS = settings['rtsp_max_reconnect_attempts']
+    RTSP_RECONNECT_DELAY_MAX = settings['rtsp_reconnect_delay_max']
+    
+    # Frame Processing (can affect existing cameras through camera manager)
+    FRAME_QUEUE_SIZE = settings['frame_queue_size']
+    PROCESSING_FPS = settings['processing_fps']
+    JPEG_QUALITY = settings['jpeg_quality']
+    
+    # Performance Settings
+    MAX_CAMERAS = settings['max_cameras']
+    THREAD_CLEANUP_TIMEOUT = settings['thread_cleanup_timeout']
+    STATUS_UPDATE_INTERVAL = settings['status_update_interval']
+    
+    # Camera Management
+    DELETE_STRATEGY = settings['delete_strategy']
+    SHOW_DELETION_FEEDBACK_MS = settings['show_deletion_feedback_ms']
+    
+    # Person Detection (can be updated in detection system)
+    PERSON_DETECTION_ENABLED = settings['person_detection_enabled']
+    PERSON_DETECTION_CONFIDENCE = settings['person_detection_confidence']
+    PERSON_DETECTION_INTERVAL = settings['person_detection_interval']
+    PERSON_DETECTION_DRAW_BOXES = settings['person_detection_draw_boxes']
+    PERSON_DETECTION_RESIZE_ENABLED = settings['person_detection_resize_enabled']
+    PERSON_DETECTION_RESIZE_WIDTH = settings['person_detection_resize_width']
+    PERSON_DETECTION_RESIZE_HEIGHT = settings['person_detection_resize_height']
+    
+    # Database & Storage
+    DATABASE_ENABLED = settings['database_enabled']
+    DETECTION_IMAGE_STORAGE_ENABLED = settings['detection_image_storage_enabled']
+    DETECTION_IMAGE_QUALITY = settings['detection_image_quality']
+    DATABASE_CLEANUP_ENABLED = settings['database_cleanup_enabled']
+    DATABASE_CLEANUP_DAYS = settings['database_cleanup_days']
+    DETECTION_STORAGE_INTERVAL_SECONDS = settings['detection_storage_interval_seconds']
+
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    """Get current runtime settings"""
+    try:
+        settings = get_runtime_settings()
+        return jsonify({
+            'success': True,
+            'settings': settings
+        })
+    except Exception as e:
+        logger.error(f"Error getting settings: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/settings', methods=['PUT'])
+def update_settings():
+    """Update runtime settings"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'No settings data provided'
+            }), 400
+        
+        # Validate settings
+        current_settings = get_runtime_settings()
+        
+        # Only allow updating known runtime settings
+        valid_keys = set(current_settings.keys())
+        invalid_keys = set(data.keys()) - valid_keys
+        
+        if invalid_keys:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid setting keys: {", ".join(invalid_keys)}'
+            }), 400
+        
+        # Basic type and range validation
+        validation_errors = []
+        
+        # Numeric validations
+        numeric_ranges = {
+            'rtsp_timeout_ms': (1000, 30000),
+            'rtsp_read_timeout_ms': (1000, 15000),
+            'rtsp_reconnect_delay': (1, 10),
+            'rtsp_max_reconnect_attempts': (1, 50),
+            'rtsp_reconnect_delay_max': (5, 300),
+            'frame_queue_size': (1, 50),
+            'processing_fps': (1, 60),
+            'jpeg_quality': (10, 100),
+            'max_cameras': (1, 100),
+            'thread_cleanup_timeout': (1, 30),
+            'status_update_interval': (1, 10),
+            'show_deletion_feedback_ms': (100, 5000),
+            'person_detection_confidence': (0.1, 1.0),
+            'person_detection_interval': (1, 120),
+            'person_detection_resize_width': (320, 1920),
+            'person_detection_resize_height': (240, 1080),
+            'detection_image_quality': (50, 100),
+            'database_cleanup_days': (1, 365),
+            'detection_storage_interval_seconds': (1, 300)
+        }
+        
+        for key, value in data.items():
+            if key in numeric_ranges:
+                try:
+                    num_val = float(value)
+                    min_val, max_val = numeric_ranges[key]
+                    if not (min_val <= num_val <= max_val):
+                        validation_errors.append(f'{key} must be between {min_val} and {max_val}')
+                except (ValueError, TypeError):
+                    validation_errors.append(f'{key} must be a number')
+            
+            elif key in ['person_detection_enabled', 'person_detection_draw_boxes', 
+                        'person_detection_resize_enabled', 'database_enabled', 
+                        'detection_image_storage_enabled', 'database_cleanup_enabled']:
+                if not isinstance(value, bool):
+                    validation_errors.append(f'{key} must be a boolean')
+            
+            elif key == 'delete_strategy':
+                if value not in ['optimistic', 'synchronous']:
+                    validation_errors.append('delete_strategy must be either "optimistic" or "synchronous"')
+        
+        if validation_errors:
+            return jsonify({
+                'success': False,
+                'error': 'Validation errors: ' + '; '.join(validation_errors)
+            }), 400
+        
+        # Load current user settings
+        user_settings = load_user_settings()
+        
+        # Update with new values
+        user_settings.update(data)
+        
+        # Save to file
+        if not save_user_settings(user_settings):
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save settings'
+            }), 500
+        
+        # Apply runtime changes
+        updated_settings = get_runtime_settings()
+        apply_runtime_settings(updated_settings)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Settings updated successfully',
+            'settings': updated_settings
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/settings/reset', methods=['POST'])
+def reset_settings():
+    """Reset all settings to defaults"""
+    try:
+        # Remove user settings file
+        if os.path.exists(SETTINGS_FILE):
+            os.remove(SETTINGS_FILE)
+        
+        # Get default settings
+        default_settings = get_runtime_settings()
+        
+        # Apply defaults
+        apply_runtime_settings(default_settings)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Settings reset to defaults successfully',
+            'settings': default_settings
+        })
+        
+    except Exception as e:
+        logger.error(f"Error resetting settings: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @app.route('/api/cameras', methods=['GET'])

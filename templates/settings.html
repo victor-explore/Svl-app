@@ -1,0 +1,619 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Svl App{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-3xl font-bold">System Settings</h1>
+        <div class="flex gap-2">
+            <button type="button" class="btn btn-outline" onclick="loadSettings()">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+            </button>
+            <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                </svg>
+                Reset to Defaults
+            </button>
+        </div>
+    </div>
+
+    <!-- Settings Form -->
+    <form id="settingsForm">
+        <!-- RTSP Connection Settings -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <div class="flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold">RTSP Connection Settings</h2>                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="How long to wait when connecting to camera before timing out">
+                                <span class="label-text font-medium">Connection Timeout</span>
+                            </div>
+                            <span class="label-text-alt" id="rtsp_timeout_ms_value">5000ms</span>
+                        </label>
+                        <input type="range" name="rtsp_timeout_ms" min="1000" max="30000" step="1000" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>15s</span>
+                            <span>30s</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="How long to wait for video frames before considering connection lost">
+                                <span class="label-text font-medium">Read Timeout</span>
+                            </div>
+                            <span class="label-text-alt" id="rtsp_read_timeout_ms_value">3000ms</span>
+                        </label>
+                        <input type="range" name="rtsp_read_timeout_ms" min="1000" max="15000" step="1000" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>8s</span>
+                            <span>15s</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Wait time before attempting to reconnect to failed camera">
+                                <span class="label-text font-medium">Reconnect Delay</span>
+                            </div>
+                            <span class="label-text-alt" id="rtsp_reconnect_delay_value">1s</span>
+                        </label>
+                        <input type="range" name="rtsp_reconnect_delay" min="1" max="10" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>5s</span>
+                            <span>10s</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Number of reconnection attempts before marking camera as failed">
+                                <span class="label-text font-medium">Max Reconnect Attempts</span>
+                            </div>
+                            <span class="label-text-alt" id="rtsp_max_reconnect_attempts_value">10</span>
+                        </label>
+                        <input type="range" name="rtsp_max_reconnect_attempts" min="1" max="50" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1</span>
+                            <span>25</span>
+                            <span>50</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Maximum delay between reconnect attempts (uses exponential backoff)">
+                                <span class="label-text font-medium">Max Reconnect Delay</span>
+                            </div>
+                            <span class="label-text-alt" id="rtsp_reconnect_delay_max_value">30s</span>
+                        </label>
+                        <input type="range" name="rtsp_reconnect_delay_max" min="5" max="300" step="5" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>5s</span>
+                            <span>150s</span>
+                            <span>300s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Frame Processing Settings -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <div class="flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold">Frame Processing Settings</h2>                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Number of frames buffered per camera. Higher = smoother but uses more memory">
+                                <span class="label-text font-medium">Frame Queue Size</span>
+                            </div>
+                            <span class="label-text-alt" id="frame_queue_size_value">10 frames</span>
+                        </label>
+                        <input type="range" name="frame_queue_size" min="1" max="50" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1</span>
+                            <span>25</span>
+                            <span>50</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Target frames per second for processing. Higher = smoother but uses more CPU">
+                                <span class="label-text font-medium">Processing FPS</span>
+                            </div>
+                            <span class="label-text-alt" id="processing_fps_value">25 fps</span>
+                        </label>
+                        <input type="range" name="processing_fps" min="1" max="60" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1</span>
+                            <span>30</span>
+                            <span>60</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Image compression quality. Higher = better quality but larger bandwidth usage">
+                                <span class="label-text font-medium">JPEG Quality</span>
+                            </div>
+                            <span class="label-text-alt" id="jpeg_quality_value">70%</span>
+                        </label>
+                        <input type="range" name="jpeg_quality" min="10" max="100" step="5" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>10%</span>
+                            <span>55%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Settings -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <div class="flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold">Performance Settings</h2>                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Maximum number of cameras that can be added to the system">
+                                <span class="label-text font-medium">Max Cameras</span>
+                            </div>
+                            <span class="label-text-alt" id="max_cameras_value">20</span>
+                        </label>
+                        <input type="range" name="max_cameras" min="1" max="100" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1</span>
+                            <span>50</span>
+                            <span>100</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Time to wait for camera threads to close gracefully during cleanup">
+                                <span class="label-text font-medium">Thread Cleanup Timeout</span>
+                            </div>
+                            <span class="label-text-alt" id="thread_cleanup_timeout_value">5s</span>
+                        </label>
+                        <input type="range" name="thread_cleanup_timeout" min="1" max="30" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>15s</span>
+                            <span>30s</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="How often to update camera status information in the interface">
+                                <span class="label-text font-medium">Status Update Interval</span>
+                            </div>
+                            <span class="label-text-alt" id="status_update_interval_value">2s</span>
+                        </label>
+                        <input type="range" name="status_update_interval" min="1" max="10" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>5s</span>
+                            <span>10s</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Optimistic = immediate UI response; Synchronous = wait for cleanup">
+                                <span class="label-text font-medium">Camera Deletion Strategy</span>
+                            </div>
+                        </label>
+                        <select name="delete_strategy" class="select select-bordered">
+                            <option value="optimistic">Optimistic (Immediate UI)</option>
+                            <option value="synchronous">Synchronous (Wait for Cleanup)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="How long to show 'deleting' status in UI before removing camera">
+                                <span class="label-text font-medium">Deletion Feedback Duration</span>
+                            </div>
+                            <span class="label-text-alt" id="show_deletion_feedback_ms_value">300ms</span>
+                        </label>
+                        <input type="range" name="show_deletion_feedback_ms" min="100" max="5000" step="100" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>0.1s</span>
+                            <span>2.5s</span>
+                            <span>5s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Person Detection Settings -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <div class="flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold">Person Detection Settings</h2>                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="person_detection_enabled" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Turn AI person detection on/off for all cameras">
+                                <span class="label-text font-medium">Enable Person Detection</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Minimum confidence required to count as person detection. Lower = more sensitive">
+                                <span class="label-text font-medium">Confidence Threshold</span>
+                            </div>
+                            <span class="label-text-alt" id="person_detection_confidence_value">0.5</span>
+                        </label>
+                        <input type="range" name="person_detection_confidence" min="0.1" max="1.0" step="0.05" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>0.1</span>
+                            <span>0.5</span>
+                            <span>1.0</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Process every Nth frame for detection. Higher = less CPU usage but may miss detections">
+                                <span class="label-text font-medium">Detection Interval</span>
+                            </div>
+                            <span class="label-text-alt" id="person_detection_interval_value">30 frames</span>
+                        </label>
+                        <input type="range" name="person_detection_interval" min="1" max="120" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1</span>
+                            <span>60</span>
+                            <span>120</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="person_detection_draw_boxes" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Draw green boxes around detected persons in video streams">
+                                <span class="label-text font-medium">Draw Detection Boxes</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="person_detection_resize_enabled" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Resize frames before AI processing for better performance">
+                                <span class="label-text font-medium">Enable Frame Resizing</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Target width for AI processing. Smaller = faster but less accurate">
+                                <span class="label-text font-medium">Resize Width</span>
+                            </div>
+                            <span class="label-text-alt" id="person_detection_resize_width_value">640px</span>
+                        </label>
+                        <input type="range" name="person_detection_resize_width" min="320" max="1920" step="32" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>320px</span>
+                            <span>1120px</span>
+                            <span>1920px</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Target height for AI processing. Smaller = faster but less accurate">
+                                <span class="label-text font-medium">Resize Height</span>
+                            </div>
+                            <span class="label-text-alt" id="person_detection_resize_height_value">640px</span>
+                        </label>
+                        <input type="range" name="person_detection_resize_height" min="240" max="1080" step="24" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>240px</span>
+                            <span>660px</span>
+                            <span>1080px</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database & Storage Settings -->
+        <div class="card bg-base-100 shadow-sm mb-6">
+            <div class="card-body">
+                <div class="flex items-center mb-4">
+                    <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold">Database & Storage Settings</h2>                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="database_enabled" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Save detection records to database for history and analytics">
+                                <span class="label-text font-medium">Enable Database Storage</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="detection_image_storage_enabled" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Save detection images to disk. Uses storage space but provides evidence">
+                                <span class="label-text font-medium">Enable Image Storage</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="JPEG quality for saved detection images. Higher = better quality but larger files">
+                                <span class="label-text font-medium">Detection Image Quality</span>
+                            </div>
+                            <span class="label-text-alt" id="detection_image_quality_value">95%</span>
+                        </label>
+                        <input type="range" name="detection_image_quality" min="50" max="100" step="5" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>50%</span>
+                            <span>75%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="cursor-pointer label justify-start">
+                            <input type="checkbox" name="database_cleanup_enabled" class="toggle mr-3">
+                            <div class="tooltip" data-tip="Automatically delete old detection records to manage database size">
+                                <span class="label-text font-medium">Enable Database Cleanup</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="How many days to keep detection records before automatic cleanup">
+                                <span class="label-text font-medium">Cleanup Retention (Days)</span>
+                            </div>
+                            <span class="label-text-alt" id="database_cleanup_days_value">30 days</span>
+                        </label>
+                        <input type="range" name="database_cleanup_days" min="1" max="365" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1d</span>
+                            <span>183d</span>
+                            <span>365d</span>
+                        </div>
+                    </div>
+
+                    <div class="form-control">
+                        <label class="label">
+                            <div class="tooltip" data-tip="Minimum time between saving detection images to prevent disk spam">
+                                <span class="label-text font-medium">Storage Interval</span>
+                            </div>
+                            <span class="label-text-alt" id="detection_storage_interval_seconds_value">30s</span>
+                        </label>
+                        <input type="range" name="detection_storage_interval_seconds" min="1" max="300" step="1" 
+                               class="range" oninput="updateValueDisplay(this)">
+                        <div class="w-full flex justify-between text-xs px-2">
+                            <span>1s</span>
+                            <span>150s</span>
+                            <span>300s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Save Settings Button -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+                <div class="flex justify-end gap-3">
+                    <button type="button" class="btn btn-outline" onclick="loadSettings()">
+                        Cancel Changes
+                    </button>
+                    <button type="submit" class="btn">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+
+    // Form submission handler
+    document.getElementById('settingsForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await saveSettings();
+    });
+});
+
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const result = await response.json();
+        
+        if (result.success) {
+            const settings = result.settings;
+            
+            // Populate form fields
+            Object.keys(settings).forEach(key => {
+                const element = document.querySelector(`[name="${key}"]`);
+                if (element) {
+                    if (element.type === 'checkbox') {
+                        element.checked = settings[key];
+                    } else if (element.type === 'range' || element.type === 'number') {
+                        element.value = settings[key];
+                        updateValueDisplay(element);
+                    } else {
+                        element.value = settings[key];
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading settings:', error);
+    }
+}
+
+async function saveSettings() {
+    try {
+        const formData = new FormData(document.getElementById('settingsForm'));
+        const settings = {};
+        
+        // Convert form data to settings object
+        for (let [key, value] of formData.entries()) {
+            const element = document.querySelector(`[name="${key}"]`);
+            
+            if (element.type === 'checkbox') {
+                settings[key] = element.checked;
+            } else if (element.type === 'range' || element.type === 'number') {
+                // Convert to number if it's a numeric field
+                settings[key] = parseFloat(value);
+            } else {
+                settings[key] = value;
+            }
+        }
+        
+        // Also handle unchecked checkboxes (they won't appear in FormData)
+        document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            if (!formData.has(checkbox.name)) {
+                settings[checkbox.name] = false;
+            }
+        });
+        
+        const response = await fetch('/api/settings', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(settings)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Reload to show updated values
+            setTimeout(() => loadSettings(), 500);
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+    }
+}
+
+async function resetToDefaults() {
+    if (!confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/settings/reset', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Reload to show default values
+            setTimeout(() => loadSettings(), 500);
+        }
+    } catch (error) {
+        console.error('Error resetting settings:', error);
+    }
+}
+
+function updateValueDisplay(element) {
+    const valueSpan = document.getElementById(`${element.name}_value`);
+    if (valueSpan) {
+        let displayValue = element.value;
+        
+        // Format value based on field type
+        if (element.name.includes('timeout') || element.name.includes('delay')) {
+            if (element.name.includes('_ms')) {
+                displayValue = `${element.value}ms`;
+            } else {
+                displayValue = `${element.value}s`;
+            }
+        } else if (element.name.includes('quality')) {
+            displayValue = `${element.value}%`;
+        } else if (element.name.includes('fps')) {
+            displayValue = `${element.value} fps`;
+        } else if (element.name.includes('frames') || element.name.includes('interval')) {
+            displayValue = `${element.value} frames`;
+        } else if (element.name.includes('width') || element.name.includes('height')) {
+            displayValue = `${element.value}px`;
+        } else if (element.name.includes('days')) {
+            displayValue = `${element.value} days`;
+        } else if (element.name.includes('confidence')) {
+            displayValue = parseFloat(element.value).toFixed(2);
+        } else if (element.name === 'detection_storage_interval_seconds') {
+            displayValue = `${element.value}s`;
+        }
+        
+        valueSpan.textContent = displayValue;
+    }
+}
+
+</script>
+{% endblock %}
