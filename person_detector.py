@@ -9,6 +9,21 @@ import logging
 import time
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
+from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH, 
+                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT)
+
+# Import additional modules for diagnostics
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +87,7 @@ class PersonDetector:
         self.total_frames_processed = 0
         self.average_inference_time = 0.0
         self.last_detection_time = None
+        self.first_inference = True
         
         logger.info(f"PersonDetector initializing with model: {model_path}, confidence: {confidence_threshold}")
         
@@ -95,12 +111,46 @@ class PersonDetector:
             logger.info(f"Downloading and loading YOLOv8 model: {self.model_path}")
             logger.info("This may take a few moments on first run as the model is downloaded...")
             
+            # GPU/Device detection
+            if TORCH_AVAILABLE:
+                cuda_available = torch.cuda.is_available()
+                cuda_device_count = torch.cuda.device_count()
+                
+                logger.info(f"CUDA Available: {cuda_available}")
+                if cuda_available:
+                    logger.info(f"CUDA Devices: {cuda_device_count}")
+                    for i in range(cuda_device_count):
+                        logger.info(f"Device {i}: {torch.cuda.get_device_name(i)}")
+                else:
+                    logger.info("Running on CPU - this will be significantly slower")
+            else:
+                logger.warning("PyTorch not available - cannot detect GPU")
+            
             from ultralytics import YOLO
             self.model = YOLO(self.model_path)
             self.is_initialized = True
             
             logger.info("YOLOv8 model loaded successfully!")
             logger.info(f"Model classes: {len(self.model.names)} (person is class 0)")
+            
+            # Log model device after loading
+            try:
+                model_device = getattr(self.model, 'device', 'unknown')
+                logger.info(f"Model loaded on device: {model_device}")
+            except:
+                logger.info("Could not determine model device")
+            
+            # Model configuration analysis
+            try:
+                logger.info(f"Model task: {getattr(self.model, 'task', 'unknown')}")
+                logger.info(f"Model mode: {getattr(self.model, 'mode', 'unknown')}")
+                
+                # Try to get model parameters
+                if hasattr(self.model, 'model'):
+                    model_parameters = sum(p.numel() for p in self.model.model.parameters())
+                    logger.info(f"Model parameters: {model_parameters:,}")
+            except Exception as e:
+                logger.debug(f"Could not determine model details: {e}")
             
             return True
         except Exception as e:
@@ -126,10 +176,62 @@ class PersonDetector:
         try:
             start_time = time.time()
             
-            # Run inference - class 0 is 'person' in COCO dataset
-            results = self.model(frame, classes=[0], verbose=False)
+            # Store original frame dimensions
+            original_height, original_width = frame.shape[:2]
+            logger.debug(f"Original frame dimensions: {original_width}x{original_height}")
             
-            inference_time = time.time() - start_time
+            # Resize frame for inference if enabled
+            if PERSON_DETECTION_RESIZE_ENABLED:
+                inference_frame = self._resize_frame_for_inference(frame)
+                logger.debug(f"Resized frame dimensions: {PERSON_DETECTION_RESIZE_WIDTH}x{PERSON_DETECTION_RESIZE_HEIGHT}")
+            else:
+                inference_frame = frame
+            
+            # First-run detection tracking
+            if self.first_inference:
+                logger.info("=== FIRST INFERENCE - Expected to be slower ===")
+                logger.info("Subsequent inferences should be faster")
+            
+            # Pre-inference diagnostics
+            logger.info(f"=== YOLO Inference Debug Start ===")
+            logger.info(f"Frame shape: {inference_frame.shape}")
+            logger.info(f"Frame dtype: {inference_frame.dtype}")
+            logger.info(f"Frame min/max values: {inference_frame.min()}/{inference_frame.max()}")
+            
+            # Model device check
+            try:
+                model_device = getattr(self.model, 'device', 'unknown')
+                logger.info(f"Model device: {model_device}")
+            except:
+                logger.info("Could not determine model device")
+            
+            # System resource check
+            if PSUTIL_AVAILABLE:
+                try:
+                    memory_info = psutil.virtual_memory()
+                    logger.info(f"Available RAM: {memory_info.available / 1024**3:.1f}GB / {memory_info.total / 1024**3:.1f}GB ({memory_info.percent}% used)")
+                    logger.info(f"CPU usage: {psutil.cpu_percent()}%")
+                except Exception as e:
+                    logger.debug(f"Could not get system info: {e}")
+            
+            # Detailed timing
+            inference_start = time.time()
+            logger.info(f"Starting YOLO inference at {inference_start}")
+            
+            # Run inference - class 0 is 'person' in COCO dataset
+            results = self.model(inference_frame, classes=[0], verbose=False)
+            
+            inference_end = time.time()
+            inference_time = inference_end - start_time
+            inference_duration = inference_end - inference_start
+            logger.info(f"YOLO inference completed in {inference_duration:.3f} seconds")
+            logger.info(f"=== YOLO Inference Debug End ===")
+            
+            # Mark first inference as complete
+            if self.first_inference:
+                self.first_inference = False
+                logger.info("=== FIRST INFERENCE COMPLETED ===")
+                logger.info("Future inferences should be significantly faster")
             self._update_performance_stats(inference_time)
             
             detections = []
@@ -151,21 +253,24 @@ class PersonDetector:
                         if confidence >= self.confidence_threshold:
                             bbox = boxes[i].tolist()  # [x1, y1, x2, y2]
                             
-                            # Get frame dimensions
-                            frame_height, frame_width = frame.shape[:2]
+                            # Scale bounding boxes back to original frame dimensions
+                            if PERSON_DETECTION_RESIZE_ENABLED:
+                                bbox = self._scale_bbox_to_original(bbox, original_width, original_height)
                             
                             detection = DetectionResult(
                                 bbox=bbox, 
                                 confidence=confidence, 
                                 timestamp=current_time,
-                                frame_width=frame_width,
-                                frame_height=frame_height
+                                frame_width=original_width,
+                                frame_height=original_height
                             )
                             detections.append(detection)
                             person_count += 1
             
             self.total_detections += person_count
             self.last_detection_time = datetime.now()
+            
+            logger.debug(f"Detection completed in {inference_time:.3f}s - found {person_count} person(s)")
             
             return detections, person_count
             
@@ -211,6 +316,65 @@ class PersonDetector:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
         return frame_with_boxes
+
+    def _resize_frame_for_inference(self, frame: np.ndarray) -> np.ndarray:
+        """Resize frame for optimal YOLO inference performance"""
+        target_size = (PERSON_DETECTION_RESIZE_WIDTH, PERSON_DETECTION_RESIZE_HEIGHT)
+        
+        if PERSON_DETECTION_MAINTAIN_ASPECT:
+            return self._resize_with_padding(frame, target_size)
+        else:
+            return cv2.resize(frame, target_size)
+
+    def _resize_with_padding(self, frame: np.ndarray, target_size: Tuple[int, int]) -> np.ndarray:
+        """Resize frame maintaining aspect ratio with padding"""
+        target_width, target_height = target_size
+        h, w = frame.shape[:2]
+        
+        # Calculate scale to fit the frame within target size
+        scale = min(target_width / w, target_height / h)
+        new_width = int(w * scale)
+        new_height = int(h * scale)
+        
+        # Resize frame
+        resized = cv2.resize(frame, (new_width, new_height))
+        
+        # Create target canvas and center the resized frame
+        canvas = np.zeros((target_height, target_width, 3), dtype=np.uint8)
+        y_offset = (target_height - new_height) // 2
+        x_offset = (target_width - new_width) // 2
+        canvas[y_offset:y_offset+new_height, x_offset:x_offset+new_width] = resized
+        
+        # Store padding info for bbox scaling
+        self._padding_info = {
+            'scale': scale,
+            'x_offset': x_offset,
+            'y_offset': y_offset
+        }
+        
+        return canvas
+
+    def _scale_bbox_to_original(self, bbox: List[float], orig_width: int, orig_height: int) -> List[float]:
+        """Scale bounding box coordinates back to original frame dimensions"""
+        x1, y1, x2, y2 = bbox
+        
+        if PERSON_DETECTION_MAINTAIN_ASPECT and hasattr(self, '_padding_info'):
+            # Remove padding offset and scale back
+            padding = self._padding_info
+            x1 = (x1 - padding['x_offset']) / padding['scale']
+            y1 = (y1 - padding['y_offset']) / padding['scale']
+            x2 = (x2 - padding['x_offset']) / padding['scale']
+            y2 = (y2 - padding['y_offset']) / padding['scale']
+        else:
+            # Simple scaling without aspect ratio preservation
+            width_scale = orig_width / PERSON_DETECTION_RESIZE_WIDTH
+            height_scale = orig_height / PERSON_DETECTION_RESIZE_HEIGHT
+            x1 *= width_scale
+            y1 *= height_scale
+            x2 *= width_scale
+            y2 *= height_scale
+        
+        return [x1, y1, x2, y2]
 
     def get_stats(self) -> Dict:
         """Get detection performance statistics"""

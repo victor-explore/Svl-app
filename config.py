@@ -56,13 +56,19 @@ ERROR_MESSAGES = {
 
 # Person Detection Settings
 PERSON_DETECTION_ENABLED = True                # Enable person detection globally
-PERSON_DETECTION_MODEL = 'yolov8n.pt'         # YOLOv8 model to use (yolov8n.pt is fastest)
+PERSON_DETECTION_MODEL = './yolov8n.pt'       # YOLOv8 model to use (yolov8n.pt is fastest)
 PERSON_DETECTION_CONFIDENCE = 0.5             # Minimum confidence threshold for detections
 PERSON_DETECTION_INTERVAL = 30                # Process every 30 frames (~1.2 seconds at 25 FPS)
 PERSON_DETECTION_MAX_HISTORY = 100            # Maximum detection results to keep per camera
 PERSON_DETECTION_DRAW_BOXES = True            # Draw bounding boxes on streamed video
 PERSON_DETECTION_BOX_COLOR = (0, 255, 0)      # Bounding box color (BGR format)
 PERSON_DETECTION_BOX_THICKNESS = 2            # Bounding box line thickness
+
+# Person Detection Performance Settings
+PERSON_DETECTION_RESIZE_ENABLED = True        # Enable frame resizing before inference
+PERSON_DETECTION_RESIZE_WIDTH = 640           # Target width for inference (YOLO optimal)
+PERSON_DETECTION_RESIZE_HEIGHT = 640          # Target height for inference
+PERSON_DETECTION_MAINTAIN_ASPECT = True       # Maintain aspect ratio when resizing
 
 # Database Storage Settings
 DATABASE_ENABLED = True                        # Enable database storage of detections

@@ -7,3 +7,6 @@ Password: Management@442
 rtsp://admin:Management%40442@192.168.1.250/cam/realmonitor?channel=1&subtype=0
 rtsp://admin:Management%40442@192.168.1.241/cam/realmonitor?channel=1&subtype=0
 
+PC IP V4
+IP - 192.168.1.4
+Mask - 255.255.255.0

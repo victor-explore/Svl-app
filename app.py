@@ -112,6 +112,11 @@ def sensor_analytics():
     
     return render_template('sensor_analytics.html', detections=detections)
 
+@app.route('/tracking')
+def tracking():
+    """Tracking page with timeline"""
+    return render_template('tracking.html')
+
 
 @app.route('/api/cameras', methods=['GET'])
 def get_cameras():

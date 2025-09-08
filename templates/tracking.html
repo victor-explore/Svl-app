@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Tracking - Svl App{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-6">
+    <!-- Page Header -->
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-base-content mb-2">Tracking</h1>
+        <p class="text-base-content/70">Track events and activities over time</p>
+    </div>
+
+    <!-- Search/Filter Input -->
+    <div class="mb-8">
+        <div class="form-control w-full max-w-md">
+            <label class="label">
+                <span class="label-text">Search by Object ID</span>
+            </label>
+            <input type="text" placeholder="Enter Object ID to search..." class="input input-bordered w-full max-w-md" />
+        </div>
+    </div>
+
+    <!-- Timeline Section -->
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body">
+            <h2 class="card-title mb-6">Timeline</h2>
+            
+            <ul class="timeline timeline-vertical">
+                <li>
+                    <div class="timeline-start">2024-01-15 09:30:00</div>
+                    <div class="timeline-middle">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            class="h-5 w-5"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box">Area 1</div>
+                    <hr />
+                </li>
+                <li>
+                    <hr />
+                    <div class="timeline-start">2024-01-15 10:15:00</div>
+                    <div class="timeline-middle">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            class="h-5 w-5"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box">Area 2</div>
+                    <hr />
+                </li>
+                <li>
+                    <hr />
+                    <div class="timeline-start">2024-01-15 11:45:00</div>
+                    <div class="timeline-middle">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            class="h-5 w-5"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box">Area 3</div>
+                    <hr />
+                </li>
+                <li>
+                    <hr />
+                    <div class="timeline-start">2024-01-15 14:20:00</div>
+                    <div class="timeline-middle">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            class="h-5 w-5"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box">Area 4</div>
+                    <hr />
+                </li>
+                <li>
+                    <hr />
+                    <div class="timeline-start">2024-01-15 16:30:00</div>
+                    <div class="timeline-middle">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                            class="h-5 w-5"
+                        >
+                            <path
+                                fill-rule="evenodd"
+                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
+                                clip-rule="evenodd"
+                            />
+                        </svg>
+                    </div>
+                    <div class="timeline-end timeline-box">Area 5</div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
