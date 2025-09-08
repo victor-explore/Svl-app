@@ -9,39 +9,25 @@
     <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
 </head>
 <body>
-    <div class="drawer lg:drawer-open">
-        <input id="my-drawer-2" type="checkbox" class="drawer-toggle" />
-        <div class="drawer-content flex flex-col">
-            <!-- Page content here -->
-            <main class="flex-1 bg-base-100">
-                <div class="container mx-auto py-4">
-                    {% block content %}{% endblock %}
-                </div>
-            </main>
+    <!-- Horizontal Navbar -->
+    <div class="navbar bg-base-100 shadow-sm">
+        <div class="flex-1">
+            <a class="btn btn-ghost text-xl">Svl App</a>
         </div>
-        <div class="drawer-side">
-            <label for="my-drawer-2" aria-label="close sidebar" class="drawer-overlay"></label>
-            <ul class="menu bg-base-200 text-base-content min-h-full w-40 p-4">
-                <!-- Header -->
-                <li class="menu-title">
-                    <span>Svl App</span>
-                </li>
-                <!-- Sidebar content here -->
-                <li>
-                    <details>
-                        <summary>Feed</summary>
-                        <ul>
-                            <li><a href="/feed">Camera Feed</a></li>
-                            <li><a href="#" onclick="addCameraModal.showModal()">Add Camera</a></li>
-                        </ul>
-                    </details>
-                </li>
-                <li>
-                    <a href="/sensor-analytics">Sensor Analytics</a>
-                </li>
+        <div class="flex-none">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="/feed">Feed</a></li>
+                <li><a href="/sensor-analytics">Sensor Analytics</a></li>
             </ul>
         </div>
     </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 bg-base-100">
+        <div class="container mx-auto py-4">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
 
     <!-- Add Camera Modal -->
     <dialog id="addCameraModal" class="modal">
