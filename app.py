@@ -175,7 +175,7 @@ def get_runtime_settings():
         'delete_strategy': user_settings.get('delete_strategy', DELETE_STRATEGY),
         'show_deletion_feedback_ms': user_settings.get('show_deletion_feedback_ms', SHOW_DELETION_FEEDBACK_MS),
         
-        # Person Detection Settings
+        # Detection Settings
         'person_detection_enabled': user_settings.get('person_detection_enabled', PERSON_DETECTION_ENABLED),
         'person_detection_confidence': user_settings.get('person_detection_confidence', PERSON_DETECTION_CONFIDENCE),
         'person_detection_interval': user_settings.get('person_detection_interval', PERSON_DETECTION_INTERVAL),

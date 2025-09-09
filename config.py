@@ -54,7 +54,7 @@ ERROR_MESSAGES = {
     'timeout': 'Connection timeout exceeded'
 }
 
-# Person Detection Settings
+# Detection Settings
 PERSON_DETECTION_ENABLED = True                # Enable person detection globally
 PERSON_DETECTION_MODEL = './yolov8n.pt'       # YOLOv8 model to use (yolov8n.pt is fastest)
 PERSON_DETECTION_CONFIDENCE = 0.5             # Minimum confidence threshold for detections

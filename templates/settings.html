@@ -6,20 +6,6 @@
 <div class="max-w-6xl mx-auto p-6">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-3xl font-bold">System Settings</h1>
-        <div class="flex gap-2">
-            <button type="button" class="btn btn-outline" onclick="loadSettings()">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                </svg>
-                Refresh
-            </button>
-            <button type="button" class="btn btn-outline" onclick="resetToDefaults()">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                </svg>
-                Reset to Defaults
-            </button>
-        </div>
     </div>
 
     <!-- Settings Form -->
@@ -31,12 +17,13 @@
                     <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                     </svg>
-                    <h2 class="text-xl font-semibold">RTSP Connection Settings</h2>                </div>
+                    <h2 class="text-xl font-semibold">Stream Settings</h2>                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div class="form-control">
                         <label class="label">
-                            <div class="tooltip" data-tip="How long to wait when connecting to camera before timing out">
+                            <div class="tooltip" data-tip="If the camera doesn't respond within this time, the connection attempt is abandoned and marked as failed
+                            ">
                                 <span class="label-text font-medium">Connection Timeout</span>
                             </div>
                             <span class="label-text-alt" id="rtsp_timeout_ms_value">5000ms</span>
@@ -236,53 +223,26 @@
                         </div>
                     </div>
 
-                    <div class="form-control">
-                        <label class="label">
-                            <div class="tooltip" data-tip="Optimistic = immediate UI response; Synchronous = wait for cleanup">
-                                <span class="label-text font-medium">Camera Deletion Strategy</span>
-                            </div>
-                        </label>
-                        <select name="delete_strategy" class="select select-bordered">
-                            <option value="optimistic">Optimistic (Immediate UI)</option>
-                            <option value="synchronous">Synchronous (Wait for Cleanup)</option>
-                        </select>
-                    </div>
-
-                    <div class="form-control">
-                        <label class="label">
-                            <div class="tooltip" data-tip="How long to show 'deleting' status in UI before removing camera">
-                                <span class="label-text font-medium">Deletion Feedback Duration</span>
-                            </div>
-                            <span class="label-text-alt" id="show_deletion_feedback_ms_value">300ms</span>
-                        </label>
-                        <input type="range" name="show_deletion_feedback_ms" min="100" max="5000" step="100" 
-                               class="range" oninput="updateValueDisplay(this)">
-                        <div class="w-full flex justify-between text-xs px-2">
-                            <span>0.1s</span>
-                            <span>2.5s</span>
-                            <span>5s</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Person Detection Settings -->
+        <!-- Detection Settings -->
         <div class="card bg-base-100 shadow-sm mb-6">
             <div class="card-body">
                 <div class="flex items-center mb-4">
                     <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                     </svg>
-                    <h2 class="text-xl font-semibold">Person Detection Settings</h2>                </div>
+                    <h2 class="text-xl font-semibold">Detection Settings</h2>                </div>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="person_detection_enabled" class="toggle mr-3">
                             <div class="tooltip" data-tip="Turn AI person detection on/off for all cameras">
-                                <span class="label-text font-medium">Enable Person Detection</span>
+                                <span class="label-text font-medium">Enable Detection</span>
                             </div>
+                            <input type="checkbox" name="person_detection_enabled" class="toggle ml-3">
                         </label>
                     </div>
 
@@ -320,19 +280,19 @@
 
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="person_detection_draw_boxes" class="toggle mr-3">
                             <div class="tooltip" data-tip="Draw green boxes around detected persons in video streams">
                                 <span class="label-text font-medium">Draw Detection Boxes</span>
                             </div>
+                            <input type="checkbox" name="person_detection_draw_boxes" class="toggle ml-3">
                         </label>
                     </div>
 
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="person_detection_resize_enabled" class="toggle mr-3">
                             <div class="tooltip" data-tip="Resize frames before AI processing for better performance">
                                 <span class="label-text font-medium">Enable Frame Resizing</span>
                             </div>
+                            <input type="checkbox" name="person_detection_resize_enabled" class="toggle ml-3">
                         </label>
                     </div>
 
@@ -383,19 +343,19 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="database_enabled" class="toggle mr-3">
                             <div class="tooltip" data-tip="Save detection records to database for history and analytics">
                                 <span class="label-text font-medium">Enable Database Storage</span>
                             </div>
+                            <input type="checkbox" name="database_enabled" class="toggle ml-3">
                         </label>
                     </div>
 
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="detection_image_storage_enabled" class="toggle mr-3">
                             <div class="tooltip" data-tip="Save detection images to disk. Uses storage space but provides evidence">
                                 <span class="label-text font-medium">Enable Image Storage</span>
                             </div>
+                            <input type="checkbox" name="detection_image_storage_enabled" class="toggle ml-3">
                         </label>
                     </div>
 
@@ -417,10 +377,10 @@
 
                     <div class="form-control">
                         <label class="cursor-pointer label justify-start">
-                            <input type="checkbox" name="database_cleanup_enabled" class="toggle mr-3">
                             <div class="tooltip" data-tip="Automatically delete old detection records to manage database size">
                                 <span class="label-text font-medium">Enable Database Cleanup</span>
                             </div>
+                            <input type="checkbox" name="database_cleanup_enabled" class="toggle ml-3">
                         </label>
                     </div>
 
@@ -462,10 +422,7 @@
         <!-- Save Settings Button -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body">
-                <div class="flex justify-end gap-3">
-                    <button type="button" class="btn btn-outline" onclick="loadSettings()">
-                        Cancel Changes
-                    </button>
+                <div class="flex justify-end">
                     <button type="submit" class="btn">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
