@@ -107,12 +107,81 @@ def feed():
 @app.route('/sensor-analytics')
 def sensor_analytics():
     """Sensor Analytics page to display detection database entries"""
+    import math
+    from datetime import datetime
     from database import db_manager
     
-    # Get enriched detection records (50 latest) with camera info
-    detections = db_manager.get_enriched_detection_history(limit=50)
+    # Get pagination parameters from URL
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 10, type=int)
     
-    return render_template('sensor_analytics.html', detections=detections)
+    # Get date filter parameters from URL
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+    
+    # Parse and validate date parameters
+    start_date = None
+    end_date = None
+    
+    if start_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+        except ValueError:
+            start_date = None
+    
+    if end_date_str:
+        try:
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+            # Set end time to end of day (23:59:59)
+            end_date = end_date.replace(hour=23, minute=59, second=59)
+        except ValueError:
+            end_date = None
+    
+    # Ensure valid values
+    page = max(1, page)
+    per_page = max(1, min(per_page, 100))  # Limit max to 100 for performance
+    
+    # Calculate offset
+    offset = (page - 1) * per_page
+    
+    # Get paginated detection records with camera info and date filters
+    detections = db_manager.get_enriched_detection_history(
+        limit=per_page, 
+        offset=offset,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    # Get total count for pagination with date filters
+    total_records = db_manager.get_total_detection_count(
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    # Calculate pagination info
+    total_pages = math.ceil(total_records / per_page) if total_records > 0 else 1
+    
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total': total_records,
+        'pages': total_pages,
+        'has_prev': page > 1,
+        'has_next': page < total_pages,
+        'prev_page': page - 1 if page > 1 else None,
+        'next_page': page + 1 if page < total_pages else None
+    }
+    
+    # Prepare date filter info for template
+    date_filter = {
+        'start_date': start_date_str or '',
+        'end_date': end_date_str or ''
+    }
+    
+    return render_template('sensor_analytics.html', 
+                         detections=detections, 
+                         pagination=pagination,
+                         date_filter=date_filter)
 
 @app.route('/tracking')
 def tracking():
@@ -1227,6 +1296,76 @@ def get_detection_statistics():
         
     except Exception as e:
         logger.error(f"Error getting detection statistics: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/analytics/hourly-detections', methods=['GET'])
+def get_hourly_detections():
+    """Get hourly detection statistics for analytics chart"""
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database functionality is not enabled'
+            }), 400
+
+        from database import db_manager
+        from datetime import datetime
+        
+        # Get date range parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        hours_back = request.args.get('hours_back', default=24, type=int)
+        
+        # Parse date parameters if provided
+        start_date = None
+        end_date = None
+        
+        if start_date_str and end_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+                # Set end time to end of day (23:59:59)
+                end_date = end_date.replace(hour=23, minute=59, second=59)
+                
+                # Basic validation
+                if start_date > end_date:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Start date cannot be after end date'
+                    }), 400
+                    
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid date format. Use YYYY-MM-DD'
+                }), 400
+        else:
+            # Limit hours_back to reasonable range when using default behavior
+            hours_back = max(1, min(hours_back, 168))  # 1 hour to 1 week
+        
+        # Get statistics using appropriate method
+        if start_date and end_date:
+            stats = db_manager.get_hourly_detection_stats(start_date=start_date, end_date=end_date)
+        else:
+            stats = db_manager.get_hourly_detection_stats(hours_back=hours_back)
+        
+        return jsonify({
+            'success': True,
+            'data': stats,
+            'range_type': 'date_range' if start_date and end_date else 'hours_back',
+            'parameters': {
+                'start_date': start_date_str,
+                'end_date': end_date_str,
+                'hours_back': hours_back if not (start_date and end_date) else None
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting hourly detection statistics: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

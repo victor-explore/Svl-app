@@ -10,10 +10,98 @@
         <p class="text-base-content/70">Detection database entries and analytics</p>
     </div>
 
+    <!-- Hourly Detections Chart -->
+    <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
+        <div class="card-body">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="card-title text-lg font-semibold" id="chartTitle">
+                    Detection Analytics (Last 24 Hours)
+                </h2>
+                <!-- Chart Time Range Controls -->
+                <div class="flex items-center gap-2">
+                    <input type="date" class="input input-bordered input-sm" id="chartStartDate" />
+                    <span class="text-sm">to</span>
+                    <input type="date" class="input input-bordered input-sm" id="chartEndDate" />
+                    <button class="btn btn-neutral btn-sm" id="updateChart">Update Chart</button>
+                    <button class="btn btn-outline btn-sm" id="resetChart">Reset</button>
+                </div>
+            </div>
+            
+            <!-- Charts Grid Container -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Line Chart (Left Side - 2/3 width) -->
+                <div class="lg:col-span-2">
+                    <h3 class="text-center font-medium mb-2">Hourly Detection Trends</h3>
+                    <div style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="hourlyDetectionsChart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Pie Chart (Right Side - 1/3 width) -->
+                <div class="lg:col-span-1">
+                    <h3 class="text-center font-medium mb-2">Camera Distribution</h3>
+                    <div class="flex justify-center">
+                        <canvas id="cameraDistributionChart" width="300" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Detection Records Table -->
     <div class="card bg-base-100 shadow-sm border border-base-300">
-        <div class="card-body p-0">
+        <div class="card-body">
+            <!-- Controls Section -->
+            <div class="flex flex-wrap justify-between items-center gap-4 pb-4 border-b border-base-300">
+                <!-- Left Side - Date Range Filter -->
+                <div class="flex flex-wrap items-center gap-4">
+                    <!-- Date Range Filter -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">Date Range:</label>
+                        <input type="date" class="input input-bordered input-sm" id="startDate" 
+                               value="{{ date_filter.start_date }}" />
+                        <span class="text-sm">to</span>
+                        <input type="date" class="input input-bordered input-sm" id="endDate"
+                               value="{{ date_filter.end_date }}" />
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="btn btn-neutral btn-sm" id="applyFilter">Apply</button>
+                        <button class="btn btn-outline btn-sm" id="clearFilter">Clear</button>
+                    </div>
+                </div>
+                
+                <!-- Right Side - Per Page and Results Info -->
+                <div class="flex flex-wrap items-center gap-4">
+                    <!-- Per Page Controls -->
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium">Show:</label>
+                        <select id="perPageSelect" class="select select-bordered select-sm">
+                            <option value="10" {% if pagination.per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="25" {% if pagination.per_page == 25 %}selected{% endif %}>25</option>
+                            <option value="50" {% if pagination.per_page == 50 %}selected{% endif %}>50</option>
+                        </select>
+                        <span class="text-sm">per page</span>
+                    </div>
+                    
+                    <!-- Results Info -->
+                    <div class="text-sm text-base-content/70">
+                        {% if pagination.total > 0 %}
+                            Showing {{ ((pagination.page - 1) * pagination.per_page) + 1 }} to {{ 
+                                pagination.page * pagination.per_page if pagination.page * pagination.per_page <= pagination.total 
+                                else pagination.total 
+                            }} of {{ pagination.total }} results
+                            {% if date_filter.start_date or date_filter.end_date %}
+                                (filtered)
+                            {% endif %}
+                        {% else %}
+                            No results found
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Table Section -->
+            <div class="pt-4 -mx-6 -mb-6">
             <div class="overflow-x-auto">
                 <table class="table table-zebra w-full">
                     <thead>
@@ -77,9 +165,463 @@
                     </tbody>
                 </table>
             </div>
+            </div>
         </div>
     </div>
 
+    <!-- Pagination Controls Bottom -->
+    {% if pagination.total > pagination.per_page %}
+    <div class="flex justify-center items-center gap-2 mt-4">
+        <!-- Previous Button -->
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('sensor_analytics', page=pagination.prev_page, per_page=pagination.per_page) }}" 
+               class="btn btn-outline btn-sm">
+                ← Previous
+            </a>
+        {% else %}
+            <button class="btn btn-outline btn-sm btn-disabled">← Previous</button>
+        {% endif %}
+        
+        <!-- Page Numbers -->
+        {% set start_page = [1, pagination.page - 2]|max %}
+        {% set end_page = [pagination.pages, pagination.page + 2]|min %}
+        
+        {% if start_page > 1 %}
+            <a href="{{ url_for('sensor_analytics', page=1, per_page=pagination.per_page) }}" 
+               class="btn btn-outline btn-sm">1</a>
+            {% if start_page > 2 %}
+                <span class="px-2">...</span>
+            {% endif %}
+        {% endif %}
+        
+        {% for page_num in range(start_page, end_page + 1) %}
+            {% if page_num == pagination.page %}
+                <button class="btn btn-neutral btn-sm">{{ page_num }}</button>
+            {% else %}
+                <a href="{{ url_for('sensor_analytics', page=page_num, per_page=pagination.per_page) }}" 
+                   class="btn btn-outline btn-sm">{{ page_num }}</a>
+            {% endif %}
+        {% endfor %}
+        
+        {% if end_page < pagination.pages %}
+            {% if end_page < pagination.pages - 1 %}
+                <span class="px-2">...</span>
+            {% endif %}
+            <a href="{{ url_for('sensor_analytics', page=pagination.pages, per_page=pagination.per_page) }}" 
+               class="btn btn-outline btn-sm">{{ pagination.pages }}</a>
+        {% endif %}
+        
+        <!-- Next Button -->
+        {% if pagination.has_next %}
+            <a href="{{ url_for('sensor_analytics', page=pagination.next_page, per_page=pagination.per_page) }}" 
+               class="btn btn-outline btn-sm">
+                Next →
+            </a>
+        {% else %}
+            <button class="btn btn-outline btn-sm btn-disabled">Next →</button>
+        {% endif %}
+    </div>
+    {% endif %}
+
 </div>
+
+<!-- Chart.js Local -->
+<script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const lineCtx = document.getElementById('hourlyDetectionsChart').getContext('2d');
+    const pieCanvas = document.getElementById('cameraDistributionChart');
+    
+    // Check if pie canvas exists
+    if (!pieCanvas) {
+        console.error('Pie chart canvas not found!');
+        return;
+    }
+    
+    const pieCtx = pieCanvas.getContext('2d');
+    const chartTitle = document.getElementById('chartTitle');
+    const chartStartDate = document.getElementById('chartStartDate');
+    const chartEndDate = document.getElementById('chartEndDate');
+    const updateChartBtn = document.getElementById('updateChart');
+    const resetChartBtn = document.getElementById('resetChart');
+    
+    let autoRefreshInterval;
+    
+    // Define consistent colors for both charts
+    const colors = [
+        '#3b82f6', // Blue - for Total
+        '#10b981', // Green
+        '#f59e0b', // Yellow  
+        '#ef4444', // Red
+        '#8b5cf6', // Purple
+        '#06b6d4', // Cyan
+        '#f97316', // Orange
+        '#84cc16', // Lime
+        '#ec4899'  // Pink
+    ];
+    
+    // Initialize line chart
+    let lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Hour'
+                    },
+                    ticks: {
+                        callback: function(value, index, values) {
+                            const label = this.getLabelForValue(value);
+                            // Show only time portion for cleaner display, unless it's a date range
+                            if (label.includes(' ')) {
+                                const parts = label.split(' ');
+                                // For date ranges or multi-day periods, show date too
+                                return parts.length > 1 ? parts[1] : label;
+                            }
+                            return label;
+                        }
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Detections'
+                    },
+                    beginAtZero: true,
+                    ticks: {
+                        precision: 0
+                    }
+                }
+            }
+        }
+    });
+    
+    // Initialize pie chart with fixed size
+    console.log('Initializing pie chart...');
+    let pieChart = null;
+    
+    try {
+        pieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Test'],
+                datasets: [{
+                    data: [1],
+                    backgroundColor: ['#3b82f6'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: false,  // DISABLE responsiveness
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        enabled: true,
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        console.log('Pie chart initialized successfully');
+    } catch (error) {
+        console.error('Error initializing pie chart:', error);
+    }
+
+    // Function to process hourly data for pie chart
+    function createPieChartData(hourlyData) {
+        const cameraTotals = {};
+        
+        // Calculate total detections per camera
+        Object.keys(hourlyData.cameras).forEach(cameraName => {
+            const total = hourlyData.cameras[cameraName].reduce((sum, count) => sum + count, 0);
+            if (total > 0) { // Only include cameras with detections
+                cameraTotals[cameraName] = total;
+            }
+        });
+        
+        return cameraTotals;
+    }
+    
+    // Function to fetch and update chart data
+    function fetchChartData(startDate = null, endDate = null) {
+        let url = '/api/analytics/hourly-detections';
+        
+        if (startDate && endDate) {
+            url += `?start_date=${startDate}&end_date=${endDate}`;
+        } else {
+            url += '?hours_back=24';
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    const data = result.data;
+                    
+                    // Update chart title based on date range
+                    if (startDate && endDate) {
+                        chartTitle.textContent = `Detection Analytics (${startDate} to ${endDate})`;
+                    } else {
+                        chartTitle.textContent = 'Detection Analytics (Last 24 Hours)';
+                    }
+                    
+                    // === UPDATE LINE CHART ===
+                    const lineDatasets = [];
+                    
+                    // Add total detections line (bold, primary color)
+                    lineDatasets.push({
+                        label: 'Total Detections',
+                        data: data.total,
+                        borderColor: colors[0], // Blue
+                        backgroundColor: colors[0] + '20',
+                        borderWidth: 3,
+                        fill: false,
+                        tension: 0.2
+                    });
+                    
+                    // Add individual camera lines
+                    let colorIndex = 1; // Skip first color (used for total)
+                    Object.keys(data.cameras).forEach(cameraName => {
+                        lineDatasets.push({
+                            label: cameraName,
+                            data: data.cameras[cameraName],
+                            borderColor: colors[colorIndex % colors.length],
+                            backgroundColor: colors[colorIndex % colors.length] + '20',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.2
+                        });
+                        colorIndex++;
+                    });
+                    
+                    // Update line chart
+                    lineChart.data.labels = data.hours;
+                    lineChart.data.datasets = lineDatasets;
+                    lineChart.update();
+                    
+                    // === UPDATE PIE CHART ===
+                    if (pieChart) {
+                        const pieData = createPieChartData(data);
+                        const cameraNames = Object.keys(pieData);
+                        const cameraValues = Object.values(pieData);
+                        const pieColors = [];
+                        
+                        // Debug logging
+                        console.log('Pie chart data:', pieData);
+                        console.log('Camera names:', cameraNames);
+                        console.log('Camera values:', cameraValues);
+                        console.log('Pie chart object:', pieChart);
+                        
+                        // Use same colors as line chart (skip total color)
+                        for (let i = 0; i < cameraNames.length; i++) {
+                            pieColors.push(colors[(i + 1) % colors.length]);
+                        }
+                        
+                        // Only update pie chart if we have data
+                        if (cameraNames.length > 0 && cameraValues.length > 0) {
+                            try {
+                                // Clear existing data
+                                pieChart.data.labels = [];
+                                pieChart.data.datasets[0].data = [];
+                                pieChart.data.datasets[0].backgroundColor = [];
+                                
+                                // Set new data
+                                pieChart.data.labels = cameraNames;
+                                pieChart.data.datasets[0].data = cameraValues;
+                                pieChart.data.datasets[0].backgroundColor = pieColors;
+                                
+                                // Update chart
+                                pieChart.update('none'); // No animation
+                                console.log('Pie chart updated successfully');
+                            } catch (error) {
+                                console.error('Error updating pie chart:', error);
+                            }
+                        } else {
+                            console.log('No pie chart data to display');
+                            // Show empty state
+                            pieChart.data.labels = ['No Data'];
+                            pieChart.data.datasets[0].data = [1];
+                            pieChart.data.datasets[0].backgroundColor = ['#cccccc'];
+                            pieChart.update('none');
+                        }
+                    } else {
+                        console.error('Pie chart not initialized');
+                    }
+                    
+                } else {
+                    console.error('Failed to fetch hourly detection data:', result.error || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching hourly detection data:', error);
+            });
+    }
+    
+    // Chart control handlers
+    updateChartBtn.addEventListener('click', function() {
+        const startDate = chartStartDate.value;
+        const endDate = chartEndDate.value;
+        
+        if (startDate && endDate) {
+            // Validate date range
+            if (startDate > endDate) {
+                alert('Start date cannot be after end date');
+                return;
+            }
+            
+            // Clear auto-refresh when using custom date range
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            
+            fetchChartData(startDate, endDate);
+        } else if (startDate || endDate) {
+            alert('Please select both start and end dates');
+        } else {
+            // If no dates provided, fetch default data
+            resetChart();
+        }
+    });
+    
+    resetChartBtn.addEventListener('click', function() {
+        resetChart();
+    });
+    
+    function resetChart() {
+        // Clear date inputs
+        chartStartDate.value = '';
+        chartEndDate.value = '';
+        
+        // Restore default view
+        fetchChartData();
+        
+        // Restart auto-refresh
+        if (autoRefreshInterval) {
+            clearInterval(autoRefreshInterval);
+        }
+        autoRefreshInterval = setInterval(() => {
+            // Only auto-refresh if we're in default mode (no custom dates)
+            if (!chartStartDate.value && !chartEndDate.value) {
+                fetchChartData();
+            }
+        }, 5 * 60 * 1000);
+    }
+    
+    // Load initial data and start auto-refresh
+    fetchChartData();
+    autoRefreshInterval = setInterval(() => {
+        // Only auto-refresh if we're in default mode (no custom dates)
+        if (!chartStartDate.value && !chartEndDate.value) {
+            fetchChartData();
+        }
+    }, 5 * 60 * 1000);
+});
+
+// Pagination functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const perPageSelect = document.getElementById('perPageSelect');
+    
+    if (perPageSelect) {
+        perPageSelect.addEventListener('change', function() {
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('per_page', this.value);
+            currentUrl.searchParams.set('page', '1'); // Reset to first page when changing per_page
+            window.location.href = currentUrl.toString();
+        });
+    }
+});
+
+// Date filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    const applyButton = document.getElementById('applyFilter');
+    const clearButton = document.getElementById('clearFilter');
+    
+    if (applyButton) {
+        applyButton.addEventListener('click', function() {
+            const startDate = startDateInput.value;
+            const endDate = endDateInput.value;
+            
+            // Basic validation
+            if (startDate && endDate && startDate > endDate) {
+                alert('Start date cannot be after end date');
+                return;
+            }
+            
+            // Update URL with date filters
+            const currentUrl = new URL(window.location);
+            
+            if (startDate) {
+                currentUrl.searchParams.set('start_date', startDate);
+            } else {
+                currentUrl.searchParams.delete('start_date');
+            }
+            
+            if (endDate) {
+                currentUrl.searchParams.set('end_date', endDate);
+            } else {
+                currentUrl.searchParams.delete('end_date');
+            }
+            
+            // Reset to first page when applying filter
+            currentUrl.searchParams.set('page', '1');
+            
+            window.location.href = currentUrl.toString();
+        });
+    }
+    
+    if (clearButton) {
+        clearButton.addEventListener('click', function() {
+            // Clear date inputs
+            startDateInput.value = '';
+            endDateInput.value = '';
+            
+            // Remove date parameters from URL
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.delete('start_date');
+            currentUrl.searchParams.delete('end_date');
+            currentUrl.searchParams.set('page', '1'); // Reset to first page
+            
+            window.location.href = currentUrl.toString();
+        });
+    }
+});
+</script>
 
 {% endblock %}

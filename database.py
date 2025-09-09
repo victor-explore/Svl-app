@@ -259,7 +259,7 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def get_enriched_detection_history(self, limit: int = 50, 
+    def get_enriched_detection_history(self, limit: int = 50, offset: int = 0,
                                      start_date: datetime = None, end_date: datetime = None) -> List[Dict[str, Any]]:
         """Get detection history with camera information properly joined as dictionaries"""
         session = self.get_session()
@@ -277,8 +277,8 @@ class DatabaseManager:
             if end_date:
                 query = query.filter(Detection.created_at <= end_date)
             
-            # Get detections ordered by most recent first
-            detections = query.order_by(Detection.created_at.desc()).limit(limit).all()
+            # Get detections ordered by most recent first with offset and limit
+            detections = query.order_by(Detection.created_at.desc()).offset(offset).limit(limit).all()
             
             # Step 3: Combine data manually into dictionaries
             enriched_detections = []
@@ -310,6 +310,27 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_total_detection_count(self, start_date: datetime = None, end_date: datetime = None) -> int:
+        """Get total count of detection records for pagination"""
+        session = self.get_session()
+        try:
+            query = session.query(Detection)
+            
+            if start_date:
+                query = query.filter(Detection.created_at >= start_date)
+            
+            if end_date:
+                query = query.filter(Detection.created_at <= end_date)
+            
+            count = query.count()
+            return count
+            
+        except Exception as e:
+            logger.error(f"Error getting total detection count: {e}")
+            return 0
+        finally:
+            session.close()
+
     def get_detections_by_unique_id(self, camera_unique_id: str, limit: int = 50, 
                                   start_date: datetime = None, end_date: datetime = None) -> List[Detection]:
         """Get all detections for cameras with the specified unique_id (aggregated across all camera records)"""
@@ -427,6 +448,109 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def get_hourly_detection_stats(self, hours_back: int = 24, start_date: datetime = None, end_date: datetime = None) -> Dict[str, Any]:
+        """Get hourly detection statistics for the last N hours OR a specific date range, grouped by camera"""
+        session = self.get_session()
+        try:
+            # Determine time range - either from date range or hours_back
+            if start_date and end_date:
+                # Use specific date range
+                range_start = start_date
+                range_end = end_date
+                use_date_range = True
+            else:
+                # Use hours_back (default behavior)
+                range_start = get_ist_now() - timedelta(hours=hours_back)
+                range_end = get_ist_now()
+                use_date_range = False
+            
+            # Get all detections within the time range with camera info
+            query = session.query(
+                Detection.created_at,
+                Detection.camera_id,
+                Camera.name.label('camera_name')
+            ).join(Camera).filter(
+                Detection.created_at >= range_start,
+                Detection.created_at <= range_end
+            ).order_by(Detection.created_at.desc())
+            
+            detections = query.all()
+            
+            # Process data to group by hour
+            hourly_data = {}
+            camera_names = set()
+            
+            for detection in detections:
+                # Round down to the hour
+                hour_key = detection.created_at.replace(minute=0, second=0, microsecond=0)
+                hour_str = hour_key.strftime('%Y-%m-%d %H:00')
+                
+                camera_name = detection.camera_name
+                camera_names.add(camera_name)
+                
+                if hour_str not in hourly_data:
+                    hourly_data[hour_str] = {}
+                
+                if camera_name not in hourly_data[hour_str]:
+                    hourly_data[hour_str][camera_name] = 0
+                
+                hourly_data[hour_str][camera_name] += 1
+            
+            # Create complete hour range
+            hours_list = []
+            
+            if use_date_range:
+                # For date range, create hourly buckets between start and end
+                current_hour = range_start.replace(minute=0, second=0, microsecond=0)
+                end_hour = range_end.replace(minute=0, second=0, microsecond=0)
+                
+                while current_hour <= end_hour:
+                    hours_list.append(current_hour.strftime('%Y-%m-%d %H:00'))
+                    current_hour += timedelta(hours=1)
+            else:
+                # For hours_back, use existing logic
+                current_time = get_ist_now().replace(minute=0, second=0, microsecond=0)
+                
+                for i in range(hours_back):
+                    hour_time = current_time - timedelta(hours=i)
+                    hours_list.append(hour_time.strftime('%Y-%m-%d %H:00'))
+                
+                hours_list.reverse()  # Chronological order
+            
+            # Prepare response data
+            camera_names = sorted(list(camera_names))
+            cameras_data = {}
+            total_data = []
+            
+            for camera_name in camera_names:
+                cameras_data[camera_name] = []
+            
+            for hour_str in hours_list:
+                hour_total = 0
+                
+                for camera_name in camera_names:
+                    count = hourly_data.get(hour_str, {}).get(camera_name, 0)
+                    cameras_data[camera_name].append(count)
+                    hour_total += count
+                
+                total_data.append(hour_total)
+            
+            return {
+                'hours': hours_list,
+                'total': total_data,
+                'cameras': cameras_data
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting hourly detection stats: {e}")
+            return {
+                'hours': [],
+                'total': [],
+                'cameras': {}
+            }
+        finally:
+            session.close()
+
     def cleanup_old_detections(self, days_to_keep: int = 30):
         """Clean up old detection records (optional maintenance)"""
         session = self.get_session()
