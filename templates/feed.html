@@ -1,9 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Enhanced Camera Feed - Svl App{% endblock %}
+{% block title %}Enhanced Camera Feed - Drishthi{% endblock %}
 
 {% block content %}
 
+<!-- Empty State - Only show when no cameras exist -->
+{% if cameras|length == 0 %}
+<div class="min-h-full flex flex-col items-center justify-center">
+  <h1 class="text-5xl font-bold mb-6 mt-32">Welcome to</h1>
+  <img src="{{ url_for('static', filename='Logo.png') }}" alt="Drishthi" class="mx-auto mb-8 max-w-sm">
+  <button class="btn btn-neutral" id="addCameraFromWelcome">
+    Add Svl Device
+  </button>
+</div>
+{% else %}
 <!-- Camera Grid -->
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-5 pb-4" id="cameraGrid">
     {% for camera in cameras %}
@@ -14,7 +24,7 @@
                 <span class="font-medium">{{ camera.name }}</span>
                 <button class="btn btn-ghost btn-sm delete-btn" 
                         data-camera-id="{{ camera.id }}"
-                        title="Delete Camera">
+                        title="Delete Svl Device">
                     ✕
                 </button>
             </div>
@@ -57,10 +67,11 @@
     {% endfor %}
 
 </div>
+{% endif %}
 
-<!-- Floating Action Button (FAB) for Adding Camera -->
+<!-- Floating Action Button (FAB) for Adding Svl Device -->
 <div class="fab fab-flower">
-  <div tabindex="0" role="button" class="btn btn-circle btn-lg" id="addCameraFab" aria-label="Add new camera">
+  <div tabindex="0" role="button" class="btn btn-circle btn-lg" id="addCameraFab" aria-label="Add new Svl device">
     +
   </div>
 </div>
@@ -321,6 +332,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('[FAB] FAB initialized successfully');
     }
+
+    // Handle "Add Camera" button in welcome section
+    document.getElementById('addCameraFromWelcome')?.addEventListener('click', function() {
+        const addCameraModal = document.getElementById('addCameraModal');
+        if (addCameraModal) {
+            addCameraModal.showModal();
+        }
+    });
 
     // Cleanup SSE connection on page unload
     window.addEventListener('beforeunload', function() {
