@@ -19,7 +19,15 @@
         <div class="flex-none">
             <ul class="menu menu-horizontal px-1">
                 <li><a href="/feed">Feed</a></li>
-                <li><a href="/sensor-analytics">Sensor Analytics</a></li>
+                <li>
+                    <details>
+                        <summary>Sensor</summary>
+                        <ul class="bg-base-100 rounded-t-none p-2">
+                            <li><a href="http://192.168.31.123:5000/sensor-analytics" class="text-center">Analysis</a></li>
+                            <li><a href="http://192.168.31.123:5000/map" class="text-center">Map</a></li>
+                        </ul>
+                    </details>
+                </li>
                 <li><a href="/tracking">Tracking</a></li>
                 <li><a href="/settings">Settings</a></li>
             </ul>
@@ -78,6 +86,25 @@
                             <div class="form-control">
                                 <label for="password" class="label"><span class="label-text">Password</span></label>
                                 <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-control">
+                                <label for="latitude" class="label">
+                                    <span class="label-text">Latitude</span>
+                                    <span class="label-text-alt text-info">Optional - for map view</span>
+                                </label>
+                                <input type="number" step="any" class="input input-bordered w-full" id="latitude" name="latitude" 
+                                       placeholder="e.g., 40.7589" min="-90" max="90">
+                            </div>
+                            <div class="form-control">
+                                <label for="longitude" class="label">
+                                    <span class="label-text">Longitude</span>
+                                    <span class="label-text-alt text-info">Optional - for map view</span>
+                                </label>
+                                <input type="number" step="any" class="input input-bordered w-full" id="longitude" name="longitude" 
+                                       placeholder="e.g., -73.9851" min="-180" max="180">
                             </div>
                         </div>
 
@@ -171,12 +198,17 @@
         // Add Camera functionality
         addCameraBtn.addEventListener('click', async function() {
             const formData = new FormData(addCameraForm);
+            const latitude = formData.get('latitude')?.trim();
+            const longitude = formData.get('longitude')?.trim();
+            
             const cameraData = {
                 name: formData.get('cameraName').trim() || null,
                 unique_id: formData.get('uniqueId').trim(),
                 rtsp_url: formData.get('rtspUrl').trim(),
                 username: formData.get('username').trim(),
                 password: formData.get('password').trim(),
+                latitude: latitude && latitude !== '' ? parseFloat(latitude) : null,
+                longitude: longitude && longitude !== '' ? parseFloat(longitude) : null,
                 auto_start: true
             };
 

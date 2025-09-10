@@ -56,10 +56,48 @@ cameras = []
 
 def initialize_cameras():
     """Initialize all cameras in the enhanced camera manager"""
+    global cameras
+    
+    # First, try to load cameras from database (for persistence across restarts)
+    try:
+        from database import db_manager, Camera
+        db_manager.initialize()
+        
+        # Get all cameras from database
+        session = db_manager.get_session()
+        db_cameras = session.query(Camera).all()
+        session.close()
+        
+        # If we have no in-memory cameras but have database cameras, restore them
+        if len(cameras) == 0 and len(db_cameras) > 0:
+            for db_camera in db_cameras:
+                camera_dict = {
+                    'id': db_camera.id,
+                    'name': db_camera.name,
+                    'unique_id': db_camera.unique_id,
+                    'rtsp_url': db_camera.rtsp_url,
+                    'latitude': db_camera.latitude,
+                    'longitude': db_camera.longitude,
+                    'username': '',  # Default values for manager compatibility
+                    'password': '',
+                    'status': 'offline',
+                    'auto_start': True,
+                    'created_at': db_camera.created_at.timestamp() if db_camera.created_at else time.time()
+                }
+                cameras.append(camera_dict)
+                logger.info(f"Restored camera from database: {camera_dict['name']} (ID: {camera_dict['id']})")
+                
+    except Exception as e:
+        logger.warning(f"Could not load cameras from database: {e}")
+        # Continue with in-memory cameras only
+    
+    # Initialize all cameras in the camera manager
     for camera in cameras:
         # Add default fields for compatibility
         camera.setdefault('username', '')
         camera.setdefault('password', '')
+        camera.setdefault('latitude', None)
+        camera.setdefault('longitude', None)
         
         # Add to camera manager
         camera_manager.add_camera(camera)
@@ -192,6 +230,20 @@ def tracking():
 def settings():
     """Settings page for runtime configuration"""
     return render_template('settings.html')
+
+@app.route('/map')
+def map_page():
+    """Map page showing camera locations"""
+    config_data = {
+        'MAP_DEFAULT_CENTER_LAT': MAP_DEFAULT_CENTER_LAT,
+        'MAP_DEFAULT_CENTER_LNG': MAP_DEFAULT_CENTER_LNG,
+        'MAP_DEFAULT_ZOOM': MAP_DEFAULT_ZOOM,
+        'MAP_MIN_ZOOM': MAP_MIN_ZOOM,
+        'MAP_MAX_ZOOM': MAP_MAX_ZOOM,
+        'MAP_TILE_URL_TEMPLATE': MAP_TILE_URL_TEMPLATE,
+        'CAMERA_MARKER_COLORS': CAMERA_MARKER_COLORS
+    }
+    return render_template('map.html', config=config_data)
 
 # Settings management utilities
 SETTINGS_FILE = 'user_settings.json'
@@ -513,6 +565,38 @@ def add_camera():
                 'error': f'RTSP URL already exists for camera "{existing_camera["name"]}"'
             }), 400
         
+        # Validate latitude and longitude if provided
+        latitude = data.get('latitude')
+        longitude = data.get('longitude')
+        
+        if latitude is not None:
+            try:
+                latitude = float(latitude)
+                if not -90 <= latitude <= 90:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Latitude must be between -90 and 90 degrees'
+                    }), 400
+            except (ValueError, TypeError):
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid latitude value'
+                }), 400
+                
+        if longitude is not None:
+            try:
+                longitude = float(longitude)
+                if not -180 <= longitude <= 180:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Longitude must be between -180 and 180 degrees'
+                    }), 400
+            except (ValueError, TypeError):
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid longitude value'
+                }), 400
+        
         # Create new camera
         new_camera = {
             'id': len(cameras) + 1,
@@ -521,6 +605,8 @@ def add_camera():
             'rtsp_url': data['rtsp_url'],
             'username': data.get('username', ''),
             'password': data.get('password', ''),
+            'latitude': latitude,
+            'longitude': longitude,
             'status': 'connecting' if data.get('auto_start', True) else 'offline',
             'auto_start': data.get('auto_start', True),
             'created_at': time.time()
@@ -530,6 +616,21 @@ def add_camera():
         
         # Add camera to enhanced camera manager
         camera_manager.add_camera(new_camera)
+        
+        # Also persist camera to database for map coordinates and detection records
+        try:
+            from database import db_manager
+            db_manager.create_or_get_camera(
+                camera_id=new_camera['id'],
+                camera_name=new_camera['name'],
+                camera_unique_id=new_camera['unique_id'],
+                rtsp_url=new_camera['rtsp_url'],
+                latitude=new_camera.get('latitude'),
+                longitude=new_camera.get('longitude')
+            )
+        except Exception as db_error:
+            logger.warning(f"Failed to persist camera to database: {db_error}")
+            # Continue without failing the API call
         
         return jsonify({
             'success': True,

@@ -10,3 +10,6 @@ rtsp://admin:Management%40442@192.168.1.241/cam/realmonitor?channel=1&subtype=0
 PC IP V4
 IP - 192.168.1.4
 Mask - 255.255.255.0
+
+Leh: 34.1642, 77.5847
+Nearby areas: 34.15-34.18, 77.55-77.60

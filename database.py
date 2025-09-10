@@ -28,6 +28,8 @@ class Camera(Base):
     unique_id = Column(String(50), index=True)
     name = Column(String(200), nullable=False)
     rtsp_url = Column(Text, nullable=False)
+    latitude = Column(Float, nullable=True)  # GPS latitude for map display
+    longitude = Column(Float, nullable=True)  # GPS longitude for map display
     created_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
     
     # Relationship to detections
@@ -122,7 +124,8 @@ class DatabaseManager:
         return self.SessionLocal()
     
     def create_or_get_camera(self, camera_id: int, camera_name: str, 
-                           camera_unique_id: str = None, rtsp_url: str = "") -> Camera:
+                           camera_unique_id: str = None, rtsp_url: str = "",
+                           latitude: float = None, longitude: float = None) -> Camera:
         """Create or get camera record"""
         session = self.get_session()
         try:
@@ -139,6 +142,8 @@ class DatabaseManager:
                     unique_id=camera_unique_id,
                     name=camera_name,
                     rtsp_url=rtsp_url,
+                    latitude=latitude,
+                    longitude=longitude,
                     created_at=get_ist_now().replace(tzinfo=None)
                 )
                 session.add(camera)
@@ -147,6 +152,10 @@ class DatabaseManager:
             else:
                 # Update camera info if needed
                 camera.name = camera_name
+                if latitude is not None:
+                    camera.latitude = latitude
+                if longitude is not None:
+                    camera.longitude = longitude
                 session.commit()
                 logger.debug(f"Updated camera record: {camera_name} (ID: {camera_id})")
             
@@ -183,6 +192,8 @@ class DatabaseManager:
                     unique_id=camera_unique_id,
                     name=detection_data.get('camera_name', f'Camera {camera_id}'),
                     rtsp_url=detection_data.get('rtsp_url', ''),
+                    latitude=detection_data.get('latitude'),
+                    longitude=detection_data.get('longitude'),
                     created_at=get_ist_now().replace(tzinfo=None)
                 )
                 session.add(camera)
@@ -192,6 +203,10 @@ class DatabaseManager:
                 # Update existing camera info in the same session
                 if 'camera_name' in detection_data:
                     camera.name = detection_data['camera_name']
+                if 'latitude' in detection_data and detection_data['latitude'] is not None:
+                    camera.latitude = detection_data['latitude']
+                if 'longitude' in detection_data and detection_data['longitude'] is not None:
+                    camera.longitude = detection_data['longitude']
                 logger.debug(f"Updated camera record: {camera.name} (ID: {camera_id})")
             
             # Generate unique person ID

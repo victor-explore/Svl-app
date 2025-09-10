@@ -57,6 +57,7 @@ Thumbs.db
 
 # Image files
 *.jpg
+*.png
 
 # Database files
 *.db

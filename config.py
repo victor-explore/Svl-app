@@ -88,3 +88,23 @@ DATABASE_CLEANUP_INTERVAL_HOURS = 24         # Hours between cleanup runs
 # Storage Throttling Settings
 DETECTION_STORAGE_INTERVAL_SECONDS = 30      # Save images/DB every N seconds when person detected
 DETECTION_STORAGE_THROTTLING_ENABLED = True  # Enable time-based storage throttling
+
+# Map Configuration Settings
+MAP_ENABLED = True                           # Enable offline map functionality
+MAP_TILES_PATH = "static/map_tiles"         # Path to offline map tiles
+MAP_DEFAULT_CENTER_LAT = 34.1642            # Default map center latitude (Leh, Ladakh)
+MAP_DEFAULT_CENTER_LNG = 77.5847           # Default map center longitude (Leh, Ladakh)
+MAP_DEFAULT_ZOOM = 14                       # Default zoom level for the map
+MAP_MIN_ZOOM = 10                           # Minimum zoom level allowed
+MAP_MAX_ZOOM = 18                           # Maximum zoom level allowed
+MAP_TILE_URL_TEMPLATE = "/static/map_tiles/{z}/{x}/{y}.png"  # Template for offline tile URLs
+
+# Camera Map Settings
+CAMERA_DEFAULT_LATITUDE = None              # Default latitude for new cameras (None = user must specify)
+CAMERA_DEFAULT_LONGITUDE = None             # Default longitude for new cameras (None = user must specify)
+CAMERA_MARKER_COLORS = {                    # Map marker colors by camera status
+    CAMERA_STATUS_ONLINE: "#22c55e",        # Green for online cameras
+    CAMERA_STATUS_OFFLINE: "#ef4444",       # Red for offline cameras
+    CAMERA_STATUS_CONNECTING: "#f59e0b",    # Orange for connecting cameras
+    CAMERA_STATUS_ERROR: "#dc2626"          # Dark red for error cameras
+}
