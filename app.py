@@ -327,7 +327,6 @@ def get_runtime_settings():
         'person_detection_enabled': user_settings.get('person_detection_enabled', PERSON_DETECTION_ENABLED),
         'person_detection_confidence': user_settings.get('person_detection_confidence', PERSON_DETECTION_CONFIDENCE),
         'person_detection_interval': user_settings.get('person_detection_interval', PERSON_DETECTION_INTERVAL),
-        'person_detection_draw_boxes': user_settings.get('person_detection_draw_boxes', PERSON_DETECTION_DRAW_BOXES),
         'person_detection_resize_width': user_settings.get('person_detection_resize_width', PERSON_DETECTION_RESIZE_WIDTH),
         'person_detection_resize_height': user_settings.get('person_detection_resize_height', PERSON_DETECTION_RESIZE_HEIGHT),
         
@@ -350,7 +349,7 @@ def apply_runtime_settings(settings):
     global MAX_CAMERAS, THREAD_CLEANUP_TIMEOUT, STATUS_UPDATE_INTERVAL
     global DELETE_STRATEGY, SHOW_DELETION_FEEDBACK_MS
     global PERSON_DETECTION_ENABLED, PERSON_DETECTION_CONFIDENCE, PERSON_DETECTION_INTERVAL
-    global PERSON_DETECTION_DRAW_BOXES, PERSON_DETECTION_RESIZE_ENABLED
+    global PERSON_DETECTION_RESIZE_ENABLED
     global PERSON_DETECTION_RESIZE_WIDTH, PERSON_DETECTION_RESIZE_HEIGHT
     global DATABASE_ENABLED, DETECTION_IMAGE_STORAGE_ENABLED, DETECTION_IMAGE_QUALITY
     global DATABASE_CLEANUP_ENABLED, DATABASE_CLEANUP_DAYS, DETECTION_STORAGE_INTERVAL_SECONDS
@@ -380,7 +379,6 @@ def apply_runtime_settings(settings):
     PERSON_DETECTION_ENABLED = settings['person_detection_enabled']
     PERSON_DETECTION_CONFIDENCE = settings['person_detection_confidence']
     PERSON_DETECTION_INTERVAL = settings['person_detection_interval']
-    PERSON_DETECTION_DRAW_BOXES = settings['person_detection_draw_boxes']
     PERSON_DETECTION_RESIZE_ENABLED = True  # Always enabled when detection is on
     PERSON_DETECTION_RESIZE_WIDTH = settings['person_detection_resize_width']
     PERSON_DETECTION_RESIZE_HEIGHT = settings['person_detection_resize_height']
@@ -469,7 +467,7 @@ def update_settings():
                 except (ValueError, TypeError):
                     validation_errors.append(f'{key} must be a number')
             
-            elif key in ['person_detection_enabled', 'person_detection_draw_boxes',
+            elif key in ['person_detection_enabled',
                         'database_enabled', 'database_cleanup_enabled']:
                 if not isinstance(value, bool):
                     validation_errors.append(f'{key} must be a boolean')
@@ -993,238 +991,6 @@ def get_system_status():
             'error': str(e)
         }), 500
 
-# Person Detection API Endpoints
-
-@app.route('/api/cameras/<int:camera_id>/detections', methods=['GET'])
-def get_camera_detections(camera_id):
-    """Get current person detection data for a camera"""
-    try:
-        # Import detection manager here to avoid circular imports
-        from person_detector import detection_manager
-        
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            # Log at debug level to reduce noise from frontend polling deleted cameras
-            logger.debug(f"Detection request for non-existent camera {camera_id}")
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        # Get detection statistics
-        detection_stats = detection_manager.get_detection_stats(camera_id)
-        if not detection_stats:
-            return jsonify({
-                'success': False,
-                'error': 'Detection data not available for this camera'
-            }), 404
-        
-        # Get recent detections
-        limit = int(request.args.get('limit', 10))
-        recent_detections = detection_manager.get_recent_detections(camera_id, limit)
-        
-        # Convert detections to dictionary format
-        detection_data = [detection.to_dict() for detection in recent_detections]
-        
-        return jsonify({
-            'success': True,
-            'camera_id': camera_id,
-            'detection_stats': detection_stats,
-            'recent_detections': detection_data,
-            'detection_count': len(detection_data)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting detections for camera {camera_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/cameras/<int:camera_id>/detection-settings', methods=['GET', 'PUT'])
-def camera_detection_settings(camera_id):
-    """Get or update detection settings for a camera"""
-    try:
-        from person_detector import detection_manager
-        
-        # Check if camera exists
-        camera = next((c for c in cameras if c['id'] == camera_id), None)
-        if not camera:
-            return jsonify({
-                'success': False,
-                'error': 'Camera not found'
-            }), 404
-        
-        if request.method == 'GET':
-            # Get current detection settings
-            detection_stats = detection_manager.get_detection_stats(camera_id)
-            if not detection_stats:
-                return jsonify({
-                    'success': False,
-                    'error': 'Detection settings not available for this camera'
-                }), 404
-            
-            return jsonify({
-                'success': True,
-                'camera_id': camera_id,
-                'settings': {
-                    'detection_enabled': detection_stats.get('accepting_detection_frames', False),
-                    'confidence_threshold': detection_stats['confidence_threshold'],
-                    'model_path': detection_stats['model_path']
-                }
-            })
-        
-        elif request.method == 'PUT':
-            # Update detection settings
-            data = request.get_json()
-            if not data:
-                return jsonify({
-                    'success': False,
-                    'error': 'No data provided'
-                }), 400
-            
-            # Update detection enabled/disabled status
-            if 'detection_enabled' in data:
-                enabled = bool(data['detection_enabled'])
-                # Update camera worker's accepting_detection_frames flag
-                if camera_id in camera_manager.cameras:
-                    camera_worker = camera_manager.cameras[camera_id]
-                    camera_worker.accepting_detection_frames = enabled
-                    logger.info(f"Camera {camera_id} detection {'enabled' if enabled else 'disabled'}")
-            
-            # Update confidence threshold
-            if 'confidence_threshold' in data:
-                try:
-                    threshold = float(data['confidence_threshold'])
-                    if 0.0 <= threshold <= 1.0:
-                        detector = detection_manager.get_detector(camera_id)
-                        detector.set_confidence_threshold(threshold)
-                    else:
-                        return jsonify({
-                            'success': False,
-                            'error': 'Confidence threshold must be between 0.0 and 1.0'
-                        }), 400
-                except (ValueError, TypeError):
-                    return jsonify({
-                        'success': False,
-                        'error': 'Invalid confidence threshold value'
-                    }), 400
-            
-            return jsonify({
-                'success': True,
-                'message': 'Detection settings updated successfully'
-            })
-    
-    except Exception as e:
-        logger.error(f"Error handling detection settings for camera {camera_id}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/detections/summary', methods=['GET'])
-def get_detection_summary():
-    """Get detection summary for all cameras"""
-    try:
-        from person_detector import detection_manager
-        
-        summary = {
-            'total_cameras': len(cameras),
-            'detection_enabled_cameras': 0,
-            'total_persons_detected': 0,
-            'cameras_with_recent_activity': 0,
-            'camera_summaries': {}
-        }
-        
-        for camera in cameras:
-            camera_id = camera['id']
-            detection_stats = detection_manager.get_detection_stats(camera_id)
-            
-            if detection_stats:
-                is_enabled = detection_stats.get('accepting_detection_frames', False)
-                total_detections = detection_stats.get('total_detections', 0)
-                recent_detections = len(detection_manager.get_recent_detections(camera_id, 1))
-                
-                if is_enabled:
-                    summary['detection_enabled_cameras'] += 1
-                
-                summary['total_persons_detected'] += total_detections
-                
-                if recent_detections > 0:
-                    summary['cameras_with_recent_activity'] += 1
-                
-                summary['camera_summaries'][camera_id] = {
-                    'camera_name': camera['name'],
-                    'detection_enabled': is_enabled,
-                    'total_detections': total_detections,
-                    'recent_activity': recent_detections > 0,
-                    'last_detection_time': detection_stats.get('last_detection_time')
-                }
-        
-        return jsonify({
-            'success': True,
-            'summary': summary
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting detection summary: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/detection/status', methods=['GET'])
-def get_detection_status():
-    """Get global detection system status and model initialization info"""
-    try:
-        from person_detector import detection_manager
-        
-        # Import config values
-        from config import (PERSON_DETECTION_ENABLED, PERSON_DETECTION_MODEL, 
-                          PERSON_DETECTION_CONFIDENCE, PERSON_DETECTION_INTERVAL)
-        
-        status = {
-            'detection_enabled_globally': PERSON_DETECTION_ENABLED,
-            'detection_model': PERSON_DETECTION_MODEL,
-            'detection_confidence': PERSON_DETECTION_CONFIDENCE,
-            'detection_interval': PERSON_DETECTION_INTERVAL,
-            'cameras_with_detection': {},
-            'total_cameras': len(cameras)
-        }
-        
-        # Get status for each camera
-        for camera in cameras:
-            camera_id = camera['id']
-            camera_status = {
-                'camera_name': camera['name'],
-                'has_detector': camera_id in detection_manager.detectors,
-                'detection_enabled': camera_manager.cameras[camera_id].accepting_detection_frames if camera_id in camera_manager.cameras else False,
-                'model_initialized': False,
-                'model_status': 'Not created'
-            }
-            
-            if camera_id in detection_manager.detectors:
-                detector = detection_manager.detectors[camera_id]
-                camera_status['model_initialized'] = detector.is_initialized
-                camera_status['model_status'] = 'Initialized' if detector.is_initialized else 'Not initialized'
-                camera_status['model_path'] = detector.model_path
-                camera_status['confidence_threshold'] = detector.confidence_threshold
-                camera_status['detector_stats'] = detector.get_stats()
-                
-            status['cameras_with_detection'][camera_id] = camera_status
-        
-        return jsonify({
-            'success': True,
-            'detection_system_status': status
-        })
-        
-    except Exception as e:
-        logger.error(f"Error getting detection status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 # Database Storage API Endpoints
 

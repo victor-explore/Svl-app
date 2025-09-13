@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple, Any, List
 from config import *
-from person_detector import detection_manager, DetectionResult, get_detection_service, get_detection_queue
+from person_detector import DetectionResult, get_detection_service, get_detection_queue
 
 # Import database and image storage only if enabled
 if DATABASE_ENABLED:

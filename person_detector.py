@@ -320,44 +320,6 @@ class PersonDetector:
             logger.error(f"Error during person detection: {e}")
             return [], 0
 
-    def draw_detections(self, frame: np.ndarray, detections: List[DetectionResult]) -> np.ndarray:
-        """
-        Draw detection bounding boxes on frame
-        
-        Args:
-            frame: OpenCV frame
-            detections: List of detection results
-            
-        Returns:
-            Frame with drawn bounding boxes
-        """
-        frame_with_boxes = frame.copy()
-        
-        for detection in detections:
-            x1, y1, x2, y2 = map(int, detection.bbox)
-            confidence = detection.confidence
-            
-            # Draw bounding box
-            color = (0, 255, 0)  # Green color
-            thickness = 2
-            cv2.rectangle(frame_with_boxes, (x1, y1), (x2, y2), color, thickness)
-            
-            # Draw confidence label
-            label = f"Person {confidence:.2f}"
-            label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-            
-            # Draw label background
-            cv2.rectangle(frame_with_boxes, 
-                         (x1, y1 - label_size[1] - 10), 
-                         (x1 + label_size[0], y1), 
-                         color, -1)
-            
-            # Draw label text
-            cv2.putText(frame_with_boxes, label, 
-                       (x1, y1 - 5), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-        
-        return frame_with_boxes
 
     def _resize_frame_for_inference(self, frame: np.ndarray) -> np.ndarray:
         """Resize frame for optimal YOLO inference performance"""
@@ -716,127 +678,6 @@ class DetectionService(threading.Thread):
         logger.info("DetectionService shutdown complete")
 
 
-class PersonDetectionManager:
-    """
-    Manages person detection for multiple cameras
-    Provides centralized configuration and statistics
-    """
-    
-    def __init__(self):
-        self.detectors: Dict[int, PersonDetector] = {}
-        self.detection_histories: Dict[int, List[DetectionResult]] = {}
-        self.max_history_size = 100  # Keep last 100 detections per camera
-
-        logger.info("PersonDetectionManager initialized")
-
-    def get_detector(self, camera_id: int, **kwargs) -> PersonDetector:
-        """Get or create detector for camera"""
-
-        # DIAGNOSTIC LOGGING - Track when detector is requested
-        current_time = datetime.now()
-        logger.warning(f"🚨 DIAGNOSTIC: get_detector() called for camera {camera_id} at {current_time.strftime('%H:%M:%S.%f')[:-3]}")
-        logger.warning(f"🚨 DIAGNOSTIC: Current detectors: {list(self.detectors.keys())}")
-        logger.warning(f"🚨 DIAGNOSTIC: Kwargs: {kwargs}")
-
-        # Log call stack for detector requests
-        try:
-            frame = inspect.currentframe()
-            call_stack = []
-            for i in range(5):  # Show top 5 stack frames
-                if frame:
-                    filename = frame.f_code.co_filename.split('\\')[-1]  # Just filename
-                    function_name = frame.f_code.co_name
-                    line_number = frame.f_lineno
-                    call_stack.append(f"{filename}:{line_number} in {function_name}()")
-                    frame = frame.f_back
-
-            logger.warning("🚨 DIAGNOSTIC: Call stack for get_detector():")
-            for i, call in enumerate(call_stack):
-                logger.warning(f"🚨   [{i}] {call}")
-        except Exception as e:
-            logger.error(f"Failed to get call stack: {e}")
-
-        if camera_id not in self.detectors:
-            logger.warning(f"🚨 DIAGNOSTIC: Creating NEW PersonDetector for camera {camera_id}")
-            self.detectors[camera_id] = PersonDetector(**kwargs)
-            self.detection_histories[camera_id] = []
-            logger.warning(f"🚨 DIAGNOSTIC: PersonDetector created for camera {camera_id}")
-        else:
-            logger.warning(f"🚨 DIAGNOSTIC: Returning EXISTING PersonDetector for camera {camera_id}")
-
-        return self.detectors[camera_id]
-
-
-    def add_detection_result(self, camera_id: int, detections: List[DetectionResult]):
-        """Add detection results to history"""
-        if camera_id not in self.detection_histories:
-            self.detection_histories[camera_id] = []
-        
-        history = self.detection_histories[camera_id]
-        history.extend(detections)
-        
-        # Maintain history size limit
-        if len(history) > self.max_history_size:
-            self.detection_histories[camera_id] = history[-self.max_history_size:]
-
-    def get_recent_detections(self, camera_id: int, limit: int = 10) -> List[DetectionResult]:
-        """Get recent detection results for camera (filtered by age)"""
-        if camera_id not in self.detection_histories:
-            return []
-
-        # Import config for timestamp validation
-        from config import DETECTION_RESULT_MAX_AGE_SECONDS
-        import time
-
-        history = self.detection_histories[camera_id]
-        current_time = time.time()
-
-        # Filter detections by age - only return recent ones
-        fresh_detections = []
-        for detection in history:
-            detection_age = current_time - detection.timestamp.timestamp()
-            if detection_age <= DETECTION_RESULT_MAX_AGE_SECONDS:
-                fresh_detections.append(detection)
-            else:
-                logger.debug(f"Filtered out stale detection (age: {detection_age:.1f}s > {DETECTION_RESULT_MAX_AGE_SECONDS}s)")
-
-        # Apply limit to fresh detections only
-        return fresh_detections[-limit:] if limit > 0 else fresh_detections
-
-    def get_detection_stats(self, camera_id: int) -> Optional[Dict]:
-        """Get detection statistics for camera"""
-        if camera_id not in self.detectors:
-            return None
-        
-        detector_stats = self.detectors[camera_id].get_stats()
-        recent_detections = self.get_recent_detections(camera_id, 1)
-        
-        stats = detector_stats.copy()
-        stats.update({
-            'recent_detection_count': len(recent_detections),
-            'last_person_count': len(recent_detections) if recent_detections else 0
-        })
-        
-        return stats
-
-    def cleanup_camera(self, camera_id: int):
-        """Clean up resources for a camera"""
-
-        # DIAGNOSTIC LOGGING - Track cleanup timing and state
-        cleanup_time = datetime.now()
-        logger.warning(f"🚨 DIAGNOSTIC: cleanup_camera() called for camera {camera_id} at {cleanup_time.strftime('%H:%M:%S.%f')[:-3]}")
-        logger.warning(f"🚨 DIAGNOSTIC: Detectors before cleanup: {list(self.detectors.keys())}")
-        cleanup_actions = []
-        if camera_id in self.detectors:
-            del self.detectors[camera_id]
-            cleanup_actions.append("detector")
-        if camera_id in self.detection_histories:
-            del self.detection_histories[camera_id]
-            cleanup_actions.append("detection_histories")
-
-        logger.warning(f"🚨 DIAGNOSTIC: Cleaned up: {cleanup_actions} for camera {camera_id}")
-        logger.warning(f"🚨 DIAGNOSTIC: Detectors after cleanup: {list(self.detectors.keys())}")
-        logger.info(f"Cleaned up detection resources for camera {camera_id}")
 
 class GlobalDetectionQueue:
     """
@@ -956,8 +797,6 @@ class DetectionWorkerThread(threading.Thread):
             if detections:
                 logger.info(f"Detected {person_count} person(s) in camera {camera_id}")
 
-                # Add to detection manager history
-                detection_manager.add_detection_result(camera_id, detections)
 
                 # Save detections to database and storage
                 from detection_storage import DetectionImageStorage
@@ -1015,8 +854,6 @@ detection_worker = None
 # Will be started by app.py at application startup
 detection_service = None
 
-# Keep the old detection_manager for backward compatibility during transition
-detection_manager = PersonDetectionManager()
 
 def get_detection_service():
     """Get the global detection service instance"""

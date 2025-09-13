@@ -13,7 +13,6 @@
   "person_detection_enabled": true,
   "person_detection_confidence": 0.5,
   "person_detection_interval": 30,
-  "person_detection_draw_boxes": true,
   "person_detection_resize_width": 640,
   "person_detection_resize_height": 648,
   "database_enabled": true,

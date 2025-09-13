@@ -71,7 +71,6 @@ curl -X POST http://localhost:5000/api/cameras/1/detection/enable \
 **person_detector.py** (YOLOv8 Person Detection)
 - `PersonDetector`: YOLOv8-based person detection with confidence filtering
 - `DetectionResult`: Data structure for detection results
-- `PersonDetectionManager`: Multi-camera detection coordinator
 - GPU/CPU optimization with performance tracking
 
 **detection_storage.py** (Image Storage Management)
