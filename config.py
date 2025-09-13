@@ -91,6 +91,13 @@ DATABASE_CLEANUP_INTERVAL_HOURS = 24         # Hours between cleanup runs
 DETECTION_STORAGE_INTERVAL_SECONDS = 30      # Save images/DB every N seconds when person detected
 DETECTION_STORAGE_THROTTLING_ENABLED = True  # Enable time-based storage throttling
 
+# Global Detection Queue Settings
+DETECTION_QUEUE_MAX_SIZE = 5                  # Maximum frames in global detection queue
+DETECTION_QUEUE_TIMEOUT = 1.0                # Timeout for queue operations in seconds
+
+# Detection Result Validation Settings
+DETECTION_RESULT_MAX_AGE_SECONDS = 5.0       # Maximum age for detection results to be applied to frames
+
 # Map Configuration Settings
 MAP_ENABLED = True                           # Enable offline map functionality
 MAP_TILES_PATH = "static/map_tiles"         # Path to offline map tiles

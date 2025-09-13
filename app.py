@@ -9,6 +9,7 @@ import json
 import os
 from camera_manager import EnhancedCameraManager, CameraStatus
 from config import *
+import person_detector
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -42,8 +43,17 @@ Files Modified:
 
 app = Flask(__name__)
 
+# Initialize the detection service with single YOLO model
+logger.info("Initializing DetectionService...")
 # Initialize enhanced camera manager
 camera_manager = EnhancedCameraManager()
+
+# Start global detection worker if detection is enabled
+if PERSON_DETECTION_ENABLED:
+    detection_worker = person_detector.start_detection_worker()
+    logger.info("Global detection worker started successfully - YOLO model will be loaded on first detection")
+else:
+    logger.info("Person detection is disabled in configuration")
 
 # Ensure cleanup on app shutdown
 # This should only be called when the entire application is terminating
@@ -58,8 +68,16 @@ def cleanup():
         logger.info("Application shutdown detected - cleaning up camera manager")
         camera_manager.shutdown()
 
+    # Shutdown the global detection worker
+    if PERSON_DETECTION_ENABLED:
+        logger.info("Shutting down global detection worker...")
+        person_detector.stop_detection_worker()
+        logger.info("Global detection worker shutdown complete")
+
 # In-memory storage for cameras (replace with database in production)
 cameras = []
+
+# Camera IDs now use timestamps to prevent reuse
 
 def initialize_cameras():
     """Initialize all cameras in the enhanced camera manager"""
@@ -113,6 +131,8 @@ def initialize_cameras():
         camera_status = camera_manager.get_camera_status(camera['id'])
         if camera_status:
             camera['status'] = camera_status['status']
+
+    # Camera IDs now use timestamps - no need for global counter management
 
 # Initialize cameras on startup
 initialize_cameras()
@@ -308,13 +328,11 @@ def get_runtime_settings():
         'person_detection_confidence': user_settings.get('person_detection_confidence', PERSON_DETECTION_CONFIDENCE),
         'person_detection_interval': user_settings.get('person_detection_interval', PERSON_DETECTION_INTERVAL),
         'person_detection_draw_boxes': user_settings.get('person_detection_draw_boxes', PERSON_DETECTION_DRAW_BOXES),
-        'person_detection_resize_enabled': user_settings.get('person_detection_resize_enabled', PERSON_DETECTION_RESIZE_ENABLED),
         'person_detection_resize_width': user_settings.get('person_detection_resize_width', PERSON_DETECTION_RESIZE_WIDTH),
         'person_detection_resize_height': user_settings.get('person_detection_resize_height', PERSON_DETECTION_RESIZE_HEIGHT),
         
         # Database & Storage Settings
         'database_enabled': user_settings.get('database_enabled', DATABASE_ENABLED),
-        'detection_image_storage_enabled': user_settings.get('detection_image_storage_enabled', DETECTION_IMAGE_STORAGE_ENABLED),
         'detection_image_quality': user_settings.get('detection_image_quality', DETECTION_IMAGE_QUALITY),
         'database_cleanup_enabled': user_settings.get('database_cleanup_enabled', DATABASE_CLEANUP_ENABLED),
         'database_cleanup_days': user_settings.get('database_cleanup_days', DATABASE_CLEANUP_DAYS),
@@ -363,13 +381,13 @@ def apply_runtime_settings(settings):
     PERSON_DETECTION_CONFIDENCE = settings['person_detection_confidence']
     PERSON_DETECTION_INTERVAL = settings['person_detection_interval']
     PERSON_DETECTION_DRAW_BOXES = settings['person_detection_draw_boxes']
-    PERSON_DETECTION_RESIZE_ENABLED = settings['person_detection_resize_enabled']
+    PERSON_DETECTION_RESIZE_ENABLED = True  # Always enabled when detection is on
     PERSON_DETECTION_RESIZE_WIDTH = settings['person_detection_resize_width']
     PERSON_DETECTION_RESIZE_HEIGHT = settings['person_detection_resize_height']
     
     # Database & Storage
     DATABASE_ENABLED = settings['database_enabled']
-    DETECTION_IMAGE_STORAGE_ENABLED = settings['detection_image_storage_enabled']
+    DETECTION_IMAGE_STORAGE_ENABLED = True  # Always enabled when detection is on
     DETECTION_IMAGE_QUALITY = settings['detection_image_quality']
     DATABASE_CLEANUP_ENABLED = settings['database_cleanup_enabled']
     DATABASE_CLEANUP_DAYS = settings['database_cleanup_days']
@@ -451,9 +469,8 @@ def update_settings():
                 except (ValueError, TypeError):
                     validation_errors.append(f'{key} must be a number')
             
-            elif key in ['person_detection_enabled', 'person_detection_draw_boxes', 
-                        'person_detection_resize_enabled', 'database_enabled', 
-                        'detection_image_storage_enabled', 'database_cleanup_enabled']:
+            elif key in ['person_detection_enabled', 'person_detection_draw_boxes',
+                        'database_enabled', 'database_cleanup_enabled']:
                 if not isinstance(value, bool):
                     validation_errors.append(f'{key} must be a boolean')
             
@@ -604,9 +621,9 @@ def add_camera():
                     'error': 'Invalid longitude value'
                 }), 400
         
-        # Create new camera
+        # Create new camera with unique timestamp ID (never reuse IDs)
         new_camera = {
-            'id': len(cameras) + 1,
+            'id': int(time.time() * 1000),
             'name': data.get('name') or unique_id,  # Use unique_id as fallback display name
             'unique_id': unique_id,                 # Mandatory field
             'rtsp_url': data['rtsp_url'],
@@ -618,7 +635,9 @@ def add_camera():
             'auto_start': data.get('auto_start', True),
             'created_at': time.time()
         }
-        
+
+        # Timestamp-based IDs are automatically unique - no increment needed
+
         cameras.append(new_camera)
         
         # Add camera to enhanced camera manager
@@ -741,53 +760,6 @@ def test_camera_connection():
             'error': str(e)
         }), 500
 
-def cleanup_camera_resources(camera_id):
-    """Background cleanup with progressive timeout strategy - Senior Developer Approach"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    try:
-        logger.info(f"Starting background cleanup for camera {camera_id}")
-        
-        # Progressive timeout approach: graceful -> terminate -> force_kill
-        cleanup_strategies = list(zip(CLEANUP_TIMEOUT_PROGRESSIVE, ["graceful", "terminate", "force_kill"]))
-        
-        for timeout, method in cleanup_strategies:
-            logger.info(f"Attempting {method} cleanup for camera {camera_id} (timeout: {timeout}s)")
-            
-            if _attempt_cleanup(camera_id, timeout, method):
-                logger.info(f"Camera {camera_id} successfully cleaned up using {method} method")
-                return
-        
-        # If all strategies failed
-        logger.error(f"Failed to cleanup camera {camera_id} after all attempts - resources may be leaked")
-        
-    except Exception as e:
-        logger.error(f"Background cleanup failed for camera {camera_id}: {e}")
-
-def _attempt_cleanup(camera_id, timeout, method):
-    """Attempt camera resource cleanup with specific strategy"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    try:
-        if method == "graceful":
-            # Standard graceful cleanup with short timeout
-            return camera_manager.remove_camera_graceful(camera_id, timeout)
-        
-        elif method == "terminate":
-            # More aggressive cleanup with process termination
-            return camera_manager.remove_camera_terminate(camera_id, timeout)
-        
-        elif method == "force_kill":
-            # Force kill all processes immediately
-            return camera_manager.remove_camera_force(camera_id)
-        
-    except Exception as e:
-        logger.error(f"Cleanup attempt {method} failed for camera {camera_id}: {e}")
-        return False
-    
-    return False
 
 @app.route('/api/cameras/<int:camera_id>', methods=['DELETE'])
 def delete_camera(camera_id):
@@ -818,19 +790,9 @@ def delete_camera(camera_id):
         logger.info(f"Camera count: {cameras_before_count} -> {cameras_after_count}")
         logger.info(f"Remaining cameras after deletion: {[c['id'] for c in cameras]}")
         
-        # 3. Schedule background cleanup (non-blocking)
-        if DELETE_STRATEGY == "optimistic":
-            cleanup_thread = threading.Thread(
-                target=cleanup_camera_resources, 
-                args=(camera_id,), 
-                daemon=True,
-                name=f"cleanup_camera_{camera_id}"
-            )
-            cleanup_thread.start()
-            logger.info(f"Scheduled background cleanup for camera {camera_id} ({camera_name})")
-        else:
-            # Fallback to synchronous cleanup for critical systems
-            camera_manager.remove_camera(camera_id)
+        # 3. Simple synchronous cleanup (no background thread needed)
+        camera_manager.remove_camera_simple(camera_id)
+        logger.info(f"Completed simple cleanup for camera {camera_id} ({camera_name})")
         
         # 4. Return immediate success to user
         return jsonify({
@@ -912,12 +874,9 @@ def stream_camera(camera_id):
         
         print(f"[DEBUG] Found camera '{camera['name']}', starting enhanced stream...")
         
-        # Check if detection visualization is requested
-        draw_detections = request.args.get('detections', 'true').lower() == 'true'
-        
-        # Use enhanced camera manager for streaming with detection support
+        # Use enhanced camera manager for streaming (clean video - no overlays)
         return Response(
-            camera_manager.generate_video_stream(camera_id, draw_detections),
+            camera_manager.generate_video_stream(camera_id),
             mimetype='multipart/x-mixed-replace; boundary=frame',
             headers={
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1004,14 +963,26 @@ def get_system_status():
         
         # Calculate total frames captured
         total_frames = sum(status['frames_captured'] for status in all_statuses.values() if status)
-        
+
+        # Get detection queue status
+        detection_queue_status = {}
+        if PERSON_DETECTION_ENABLED:
+            detection_queue = person_detector.get_detection_queue()
+            detection_queue_status = {
+                'queue_size': detection_queue.qsize(),
+                'queue_max_size': detection_queue.max_size,
+                'queue_full': detection_queue.is_full(),
+                'accepting_frames': detection_queue.accepting_frames
+            }
+
         return jsonify({
             'success': True,
             'system_status': {
                 'total_cameras': total_cameras,
                 'online_cameras': online_cameras,
                 'offline_cameras': total_cameras - online_cameras,
-                'total_frames_captured': total_frames
+                'total_frames_captured': total_frames,
+                'detection_queue': detection_queue_status
             },
             'camera_statuses': all_statuses
         })
@@ -1098,7 +1069,7 @@ def camera_detection_settings(camera_id):
                 'success': True,
                 'camera_id': camera_id,
                 'settings': {
-                    'detection_enabled': detection_stats['detection_enabled'],
+                    'detection_enabled': detection_stats.get('accepting_detection_frames', False),
                     'confidence_threshold': detection_stats['confidence_threshold'],
                     'model_path': detection_stats['model_path']
                 }
@@ -1116,7 +1087,11 @@ def camera_detection_settings(camera_id):
             # Update detection enabled/disabled status
             if 'detection_enabled' in data:
                 enabled = bool(data['detection_enabled'])
-                detection_manager.enable_detection(camera_id, enabled)
+                # Update camera worker's accepting_detection_frames flag
+                if camera_id in camera_manager.cameras:
+                    camera_worker = camera_manager.cameras[camera_id]
+                    camera_worker.accepting_detection_frames = enabled
+                    logger.info(f"Camera {camera_id} detection {'enabled' if enabled else 'disabled'}")
             
             # Update confidence threshold
             if 'confidence_threshold' in data:
@@ -1167,7 +1142,7 @@ def get_detection_summary():
             detection_stats = detection_manager.get_detection_stats(camera_id)
             
             if detection_stats:
-                is_enabled = detection_stats['detection_enabled']
+                is_enabled = detection_stats.get('accepting_detection_frames', False)
                 total_detections = detection_stats.get('total_detections', 0)
                 recent_detections = len(detection_manager.get_recent_detections(camera_id, 1))
                 
@@ -1224,7 +1199,7 @@ def get_detection_status():
             camera_status = {
                 'camera_name': camera['name'],
                 'has_detector': camera_id in detection_manager.detectors,
-                'detection_enabled': detection_manager.is_detection_enabled(camera_id),
+                'detection_enabled': camera_manager.cameras[camera_id].accepting_detection_frames if camera_id in camera_manager.cameras else False,
                 'model_initialized': False,
                 'model_status': 'Not created'
             }

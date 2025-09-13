@@ -9,10 +9,13 @@ import logging
 import time
 import traceback
 import inspect
+import threading
+import queue
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
 from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH,
-                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT)
+                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT,
+                   DETECTION_QUEUE_MAX_SIZE, DETECTION_QUEUE_TIMEOUT)
 
 # Import additional modules for diagnostics
 try:
@@ -445,6 +448,274 @@ class PersonDetector:
         self.confidence_threshold = max(0.0, min(1.0, threshold))
         logger.info(f"Confidence threshold updated to {self.confidence_threshold}")
 
+
+class DetectionService(threading.Thread):
+    """
+    Single detection thread that processes frames from all cameras.
+    Maintains one YOLO model instance that never gets destroyed.
+    """
+
+    def __init__(self, model_path: str = './yolov8n.pt', confidence_threshold: float = 0.5):
+        """
+        Initialize the detection service thread
+
+        Args:
+            model_path: Path to YOLOv8 model file
+            confidence_threshold: Minimum confidence for valid detection
+        """
+        super().__init__(daemon=True)
+        self.model_path = model_path
+        self.confidence_threshold = confidence_threshold
+
+        # Queues for communication
+        self.input_queue = queue.Queue(maxsize=50)  # Frames to process
+        self.output_queues = {}  # Dict[camera_id, Queue] for results
+
+        # Single PersonDetector instance that will be reused
+        self.detector = None
+        self.is_running = False
+        self.shutdown_event = threading.Event()
+
+        # Detection settings per camera
+        self.camera_settings = {}  # Dict[camera_id, dict] for per-camera settings
+
+        logger.info(f"DetectionService initialized with model: {model_path}")
+
+    def run(self):
+        """Main detection loop - runs in separate thread"""
+        logger.info("DetectionService thread started")
+        self.is_running = True
+
+        # Initialize the detector once when thread starts
+        logger.info("Initializing YOLO model in DetectionService...")
+        self.detector = PersonDetector(self.model_path, self.confidence_threshold)
+
+        # Initialize model immediately
+        if not self.detector.initialize_model():
+            logger.error("Failed to initialize YOLO model in DetectionService")
+            self.is_running = False
+            return
+
+        logger.info("YOLO model successfully loaded in DetectionService")
+
+        while self.is_running:
+            try:
+                # Check for shutdown
+                if self.shutdown_event.is_set():
+                    break
+
+                # Get frame from queue with timeout
+                try:
+                    item = self.input_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                if item is None:  # Shutdown signal
+                    break
+
+                camera_id, frame, timestamp = item
+
+                # Check if camera has an output queue
+                if camera_id not in self.output_queues:
+                    logger.warning(f"No output queue for camera {camera_id}, skipping frame")
+                    continue
+
+                # Check if there are newer frames from the same camera in the queue
+                # This helps prevent processing stale frames when the queue backs up
+                queue_items = []
+                newest_item_for_camera = (camera_id, frame, timestamp)
+
+                try:
+                    # Peek at remaining items in queue without blocking
+                    while not self.input_queue.empty():
+                        next_item = self.input_queue.get_nowait()
+                        if next_item and next_item[0] == camera_id:
+                            # Found a newer frame from same camera, use it instead
+                            newest_item_for_camera = next_item
+                            logger.debug(f"Skipping stale frame for camera {camera_id}, using newer one")
+                        else:
+                            # Different camera or shutdown signal, keep it for later
+                            queue_items.append(next_item)
+                except queue.Empty:
+                    pass
+
+                # Put back items from other cameras
+                for item_to_restore in queue_items:
+                    try:
+                        self.input_queue.put_nowait(item_to_restore)
+                    except queue.Full:
+                        logger.warning("Could not restore item to queue")
+
+                # Use the newest frame for this camera
+                camera_id, frame, timestamp = newest_item_for_camera
+
+                # Run detection
+                try:
+                    detections, person_count = self.detector.detect_persons(frame)
+
+                    # Put result in camera's output queue
+                    result = {
+                        'detections': detections,
+                        'person_count': person_count,
+                        'timestamp': timestamp,
+                        'success': True
+                    }
+
+                    # Try to put result, don't block if queue is full
+                    try:
+                        self.output_queues[camera_id].put_nowait(result)
+                    except queue.Full:
+                        logger.warning(f"Output queue full for camera {camera_id}, dropping result")
+
+                except Exception as e:
+                    logger.error(f"Detection error for camera {camera_id}: {e}")
+                    # Send error result
+                    try:
+                        error_result = {
+                            'detections': [],
+                            'person_count': 0,
+                            'timestamp': timestamp,
+                            'success': False,
+                            'error': str(e)
+                        }
+                        self.output_queues[camera_id].put_nowait(error_result)
+                    except queue.Full:
+                        pass
+
+            except Exception as e:
+                logger.error(f"DetectionService loop error: {e}")
+
+        logger.info("DetectionService thread stopped")
+        self.is_running = False
+
+    def submit_frame(self, camera_id: int, frame: np.ndarray, timestamp: datetime = None) -> bool:
+        """
+        Submit a frame for detection processing
+
+        Args:
+            camera_id: ID of the camera
+            frame: OpenCV frame to process
+            timestamp: Timestamp of the frame (optional)
+
+        Returns:
+            True if frame was submitted, False if queue is full
+        """
+        if not self.is_running:
+            logger.warning("DetectionService is not running")
+            return False
+
+        if timestamp is None:
+            timestamp = datetime.now()
+
+        try:
+            self.input_queue.put_nowait((camera_id, frame, timestamp))
+            return True
+        except queue.Full:
+            logger.debug(f"Input queue full, dropping frame from camera {camera_id}")
+            return False
+
+    def get_result(self, camera_id: int, timeout: float = 0.05) -> Optional[Dict]:
+        """
+        Get detection result for a camera
+
+        Args:
+            camera_id: ID of the camera
+            timeout: How long to wait for result
+
+        Returns:
+            Detection result dict or None if no result available
+        """
+        if camera_id not in self.output_queues:
+            return None
+
+        try:
+            return self.output_queues[camera_id].get(timeout=timeout)
+        except queue.Empty:
+            return None
+
+    def register_camera(self, camera_id: int, settings: Dict = None):
+        """
+        Register a camera with the detection service
+
+        Args:
+            camera_id: ID of the camera
+            settings: Optional detection settings for this camera
+        """
+        if camera_id not in self.output_queues:
+            self.output_queues[camera_id] = queue.Queue(maxsize=10)
+            self.camera_settings[camera_id] = settings or {}
+            logger.info(f"Registered camera {camera_id} with DetectionService")
+        else:
+            # Camera already registered, clear any stale results
+            try:
+                while not self.output_queues[camera_id].empty():
+                    self.output_queues[camera_id].get_nowait()
+                logger.debug(f"Cleared stale results for re-registered camera {camera_id}")
+            except:
+                pass
+
+    def unregister_camera(self, camera_id: int):
+        """
+        Unregister a camera from the detection service
+
+        Args:
+            camera_id: ID of the camera
+        """
+        if camera_id in self.output_queues:
+            # Clear any pending results
+            try:
+                while not self.output_queues[camera_id].empty():
+                    self.output_queues[camera_id].get_nowait()
+            except:
+                pass
+
+            del self.output_queues[camera_id]
+
+        if camera_id in self.camera_settings:
+            del self.camera_settings[camera_id]
+
+        logger.info(f"Unregistered camera {camera_id} from DetectionService")
+
+    def update_camera_settings(self, camera_id: int, settings: Dict):
+        """Update detection settings for a camera"""
+        if camera_id in self.camera_settings:
+            self.camera_settings[camera_id].update(settings)
+            logger.info(f"Updated settings for camera {camera_id}: {settings}")
+
+    def get_stats(self) -> Dict:
+        """Get detection service statistics"""
+        stats = {
+            'is_running': self.is_running,
+            'model_initialized': self.detector is not None and self.detector.is_initialized,
+            'input_queue_size': self.input_queue.qsize(),
+            'registered_cameras': list(self.output_queues.keys()),
+            'camera_count': len(self.output_queues)
+        }
+
+        if self.detector:
+            stats['detector_stats'] = self.detector.get_stats()
+
+        return stats
+
+    def shutdown(self):
+        """Shutdown the detection service"""
+        logger.info("Shutting down DetectionService...")
+        self.shutdown_event.set()
+        self.is_running = False
+
+        # Put None to signal shutdown
+        try:
+            self.input_queue.put(None, timeout=1)
+        except:
+            pass
+
+        # Wait for thread to stop
+        if self.is_alive():
+            self.join(timeout=5)
+
+        logger.info("DetectionService shutdown complete")
+
+
 class PersonDetectionManager:
     """
     Manages person detection for multiple cameras
@@ -453,10 +724,9 @@ class PersonDetectionManager:
     
     def __init__(self):
         self.detectors: Dict[int, PersonDetector] = {}
-        self.detection_enabled: Dict[int, bool] = {}
         self.detection_histories: Dict[int, List[DetectionResult]] = {}
         self.max_history_size = 100  # Keep last 100 detections per camera
-        
+
         logger.info("PersonDetectionManager initialized")
 
     def get_detector(self, camera_id: int, **kwargs) -> PersonDetector:
@@ -489,7 +759,6 @@ class PersonDetectionManager:
         if camera_id not in self.detectors:
             logger.warning(f"🚨 DIAGNOSTIC: Creating NEW PersonDetector for camera {camera_id}")
             self.detectors[camera_id] = PersonDetector(**kwargs)
-            self.detection_enabled[camera_id] = True
             self.detection_histories[camera_id] = []
             logger.warning(f"🚨 DIAGNOSTIC: PersonDetector created for camera {camera_id}")
         else:
@@ -497,14 +766,6 @@ class PersonDetectionManager:
 
         return self.detectors[camera_id]
 
-    def enable_detection(self, camera_id: int, enabled: bool = True):
-        """Enable/disable detection for a camera"""
-        self.detection_enabled[camera_id] = enabled
-        logger.info(f"Camera {camera_id} detection {'enabled' if enabled else 'disabled'}")
-
-    def is_detection_enabled(self, camera_id: int) -> bool:
-        """Check if detection is enabled for camera"""
-        return self.detection_enabled.get(camera_id, False)
 
     def add_detection_result(self, camera_id: int, detections: List[DetectionResult]):
         """Add detection results to history"""
@@ -519,12 +780,28 @@ class PersonDetectionManager:
             self.detection_histories[camera_id] = history[-self.max_history_size:]
 
     def get_recent_detections(self, camera_id: int, limit: int = 10) -> List[DetectionResult]:
-        """Get recent detection results for camera"""
+        """Get recent detection results for camera (filtered by age)"""
         if camera_id not in self.detection_histories:
             return []
-        
+
+        # Import config for timestamp validation
+        from config import DETECTION_RESULT_MAX_AGE_SECONDS
+        import time
+
         history = self.detection_histories[camera_id]
-        return history[-limit:] if limit > 0 else history
+        current_time = time.time()
+
+        # Filter detections by age - only return recent ones
+        fresh_detections = []
+        for detection in history:
+            detection_age = current_time - detection.timestamp.timestamp()
+            if detection_age <= DETECTION_RESULT_MAX_AGE_SECONDS:
+                fresh_detections.append(detection)
+            else:
+                logger.debug(f"Filtered out stale detection (age: {detection_age:.1f}s > {DETECTION_RESULT_MAX_AGE_SECONDS}s)")
+
+        # Apply limit to fresh detections only
+        return fresh_detections[-limit:] if limit > 0 else fresh_detections
 
     def get_detection_stats(self, camera_id: int) -> Optional[Dict]:
         """Get detection statistics for camera"""
@@ -536,7 +813,6 @@ class PersonDetectionManager:
         
         stats = detector_stats.copy()
         stats.update({
-            'detection_enabled': self.is_detection_enabled(camera_id),
             'recent_detection_count': len(recent_detections),
             'last_person_count': len(recent_detections) if recent_detections else 0
         })
@@ -550,15 +826,10 @@ class PersonDetectionManager:
         cleanup_time = datetime.now()
         logger.warning(f"🚨 DIAGNOSTIC: cleanup_camera() called for camera {camera_id} at {cleanup_time.strftime('%H:%M:%S.%f')[:-3]}")
         logger.warning(f"🚨 DIAGNOSTIC: Detectors before cleanup: {list(self.detectors.keys())}")
-        logger.warning(f"🚨 DIAGNOSTIC: Detection enabled before cleanup: {list(self.detection_enabled.keys())}")
-
         cleanup_actions = []
         if camera_id in self.detectors:
             del self.detectors[camera_id]
             cleanup_actions.append("detector")
-        if camera_id in self.detection_enabled:
-            del self.detection_enabled[camera_id]
-            cleanup_actions.append("detection_enabled")
         if camera_id in self.detection_histories:
             del self.detection_histories[camera_id]
             cleanup_actions.append("detection_histories")
@@ -567,14 +838,213 @@ class PersonDetectionManager:
         logger.warning(f"🚨 DIAGNOSTIC: Detectors after cleanup: {list(self.detectors.keys())}")
         logger.info(f"Cleaned up detection resources for camera {camera_id}")
 
-# Global detection manager instance
+class GlobalDetectionQueue:
+    """
+    Centralized queue for all camera detection frames
+    Fixed size queue to prevent memory issues and provide backpressure control
+    """
+
+    def __init__(self, max_size: int = DETECTION_QUEUE_MAX_SIZE):
+        self.max_size = max_size
+        self.queue = queue.Queue(maxsize=max_size)
+        self.lock = threading.Lock()
+        self.accepting_frames = True
+        logger.info(f"GlobalDetectionQueue initialized with max_size={max_size}")
+
+    def submit_frame(self, camera_id: int, frame: np.ndarray, timestamp: datetime) -> bool:
+        """Submit a frame for detection processing"""
+        try:
+            if not self.accepting_frames:
+                return False
+
+            frame_data = {
+                'camera_id': camera_id,
+                'frame': frame.copy(),
+                'timestamp': timestamp
+            }
+
+            self.queue.put(frame_data, block=False)
+            logger.debug(f"Frame submitted to detection queue from camera {camera_id}")
+            return True
+
+        except queue.Full:
+            logger.debug(f"Detection queue full, rejecting frame from camera {camera_id}")
+            return False
+        except Exception as e:
+            logger.error(f"Error submitting frame to detection queue: {e}")
+            return False
+
+    def get_frame(self, timeout: float = DETECTION_QUEUE_TIMEOUT) -> Optional[dict]:
+        """Get the next frame for processing"""
+        try:
+            return self.queue.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        except Exception as e:
+            logger.error(f"Error getting frame from detection queue: {e}")
+            return None
+
+    def task_done(self):
+        """Mark a queue task as done"""
+        self.queue.task_done()
+
+    def is_full(self) -> bool:
+        """Check if the queue is full"""
+        return self.queue.full()
+
+    def is_empty(self) -> bool:
+        """Check if the queue is empty"""
+        return self.queue.empty()
+
+    def qsize(self) -> int:
+        """Get current queue size"""
+        return self.queue.qsize()
+
+    def set_accepting_frames(self, accepting: bool):
+        """Set whether to accept new frames"""
+        with self.lock:
+            self.accepting_frames = accepting
+            logger.info(f"Detection queue accepting_frames set to {accepting}")
+
+
+class DetectionWorkerThread(threading.Thread):
+    """
+    Background thread that processes frames from the global detection queue
+    Handles YOLO inference and result storage
+    """
+
+    def __init__(self, detection_queue: GlobalDetectionQueue):
+        super().__init__()
+        self.detection_queue = detection_queue
+        self.detector_cache: Dict[int, PersonDetector] = {}
+        self.running = False
+        self.daemon = True
+        self.name = "DetectionWorker"
+        logger.info("DetectionWorkerThread initialized")
+
+    def start_processing(self):
+        """Start the detection worker thread"""
+        self.running = True
+        self.start()
+        logger.info("DetectionWorkerThread started")
+
+    def stop_processing(self):
+        """Stop the detection worker thread"""
+        self.running = False
+        logger.info("DetectionWorkerThread stopping...")
+
+    def get_detector(self, camera_id: int) -> PersonDetector:
+        """Get or create detector for camera"""
+        if camera_id not in self.detector_cache:
+            self.detector_cache[camera_id] = PersonDetector()
+            logger.info(f"Created PersonDetector for camera {camera_id} in worker thread")
+        return self.detector_cache[camera_id]
+
+    def process_frame(self, frame_data: dict):
+        """Process a single frame through YOLO detection"""
+        camera_id = frame_data['camera_id']
+        frame = frame_data['frame']
+        timestamp = frame_data['timestamp']
+
+        try:
+            # Get detector for this camera
+            detector = self.get_detector(camera_id)
+
+            # Run detection
+            detections, person_count = detector.detect_persons(frame)
+
+            if detections:
+                logger.info(f"Detected {person_count} person(s) in camera {camera_id}")
+
+                # Add to detection manager history
+                detection_manager.add_detection_result(camera_id, detections)
+
+                # Save detections to database and storage
+                from detection_storage import DetectionImageStorage
+                storage = DetectionImageStorage()
+
+                # Save detection images with annotations
+                for detection in detections:
+                    try:
+                        # Draw bounding box on frame copy
+                        annotated_frame = frame.copy()
+                        x1, y1, x2, y2 = detection.bbox
+                        cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+                        # Save annotated image
+                        storage.save_detection_image(annotated_frame, camera_id, timestamp, detection.confidence)
+
+                    except Exception as e:
+                        logger.error(f"Error saving detection image: {e}")
+
+            else:
+                logger.debug(f"No persons detected in camera {camera_id}")
+
+        except Exception as e:
+            logger.error(f"Error processing frame from camera {camera_id}: {e}")
+            logger.error(f"Detection processing error traceback: {traceback.format_exc()}")
+
+    def run(self):
+        """Main worker thread loop"""
+        logger.info("DetectionWorkerThread started processing")
+
+        while self.running:
+            # Get frame from queue
+            frame_data = self.detection_queue.get_frame(timeout=1.0)
+
+            if frame_data is None:
+                # Timeout - continue loop
+                continue
+
+            try:
+                # Process the frame
+                self.process_frame(frame_data)
+
+            finally:
+                # Mark task as done
+                self.detection_queue.task_done()
+
+        logger.info("DetectionWorkerThread stopped processing")
+
+
+# Global detection queue and worker
+global_detection_queue = GlobalDetectionQueue()
+detection_worker = None
+
+# Global detection service instance (created but not started yet)
+# Will be started by app.py at application startup
+detection_service = None
+
+# Keep the old detection_manager for backward compatibility during transition
 detection_manager = PersonDetectionManager()
 
-# DIAGNOSTIC LOGGING - Track when the global detection manager is accessed
-original_get_detector = detection_manager.get_detector
+def get_detection_service():
+    """Get the global detection service instance"""
+    return detection_service
 
-def logged_get_detector(camera_id: int, **kwargs):
-    logger.warning(f"🚨 DIAGNOSTIC: Global detection_manager.get_detector() called for camera {camera_id}")
-    return original_get_detector(camera_id, **kwargs)
+def set_detection_service(service):
+    """Set the global detection service instance"""
+    global detection_service
+    detection_service = service
+    return detection_service
 
-detection_manager.get_detector = logged_get_detector
+def get_detection_queue():
+    """Get the global detection queue instance"""
+    return global_detection_queue
+
+def start_detection_worker():
+    """Start the global detection worker thread"""
+    global detection_worker
+    if detection_worker is None or not detection_worker.is_alive():
+        detection_worker = DetectionWorkerThread(global_detection_queue)
+        detection_worker.start_processing()
+        logger.info("Global detection worker started")
+    return detection_worker
+
+def stop_detection_worker():
+    """Stop the global detection worker thread"""
+    global detection_worker
+    if detection_worker and detection_worker.is_alive():
+        detection_worker.stop_processing()
+        detection_worker.join(timeout=5)
+        logger.info("Global detection worker stopped")
