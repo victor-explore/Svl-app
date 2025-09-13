@@ -3,97 +3,22 @@
 {% block title %}Map - Drishthi{% endblock %}
 
 {% block content %}
-<div class="container mx-auto p-4">
+<div class="container mx-auto py-6">
     <div class="mb-6">
-        <div class="flex justify-between items-center">
-            <div>
-                <h1 class="text-3xl font-bold text-base-content">Surveillance Map</h1>
-                <p class="text-base-content/70 mt-2">Real-time location view of all surveillance devices</p>
-            </div>
-            <div class="flex gap-2">
-                <div class="stats shadow">
-                    <div class="stat place-items-center">
-                        <div class="stat-title">Total Cameras</div>
-                        <div class="stat-value text-primary" id="totalCameras">-</div>
-                    </div>
-                    <div class="stat place-items-center">
-                        <div class="stat-title">Online</div>
-                        <div class="stat-value text-success" id="onlineCameras">-</div>
-                    </div>
-                    <div class="stat place-items-center">
-                        <div class="stat-title">Offline</div>
-                        <div class="stat-value text-error" id="offlineCameras">-</div>
-                    </div>
-                </div>
-            </div>
+        <div>
+            <h1 class="text-3xl font-bold text-base-content mb-2">Surveillance Map</h1>
+            <p class="text-base-content/70 mt-2">Real-time location view of all surveillance devices</p>
         </div>
     </div>
 
-    <!-- Map Controls -->
-    <div class="card bg-base-100 shadow-xl mb-4">
-        <div class="card-body p-4">
-            <div class="flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                    <div class="form-control">
-                        <label class="label cursor-pointer">
-                            <input type="checkbox" class="toggle toggle-primary" id="autoRefresh" checked>
-                            <span class="label-text ml-2">Auto-refresh camera status</span>
-                        </label>
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    <div class="badge badge-outline">
-                        <div class="w-2 h-2 bg-success rounded-full mr-2"></div>
-                        Online
-                    </div>
-                    <div class="badge badge-outline">
-                        <div class="w-2 h-2 bg-warning rounded-full mr-2"></div>
-                        Connecting
-                    </div>
-                    <div class="badge badge-outline">
-                        <div class="w-2 h-2 bg-error rounded-full mr-2"></div>
-                        Offline
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Map Container -->
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body p-0">
-            <div id="map" class="w-full h-96 md:h-[600px] rounded-lg"></div>
+            <div id="map" class="w-full h-[600px] md:h-[900px] rounded-lg"></div>
         </div>
     </div>
 
-    <!-- Camera Information Panel -->
-    <div class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4" id="cameraInfoPanel" style="display: none;">
-        <div class="lg:col-span-2">
-            <div class="card bg-base-100 shadow-xl">
-                <div class="card-body">
-                    <h3 class="card-title" id="selectedCameraName">Camera Information</h3>
-                    <div id="selectedCameraDetails">
-                        <!-- Camera details will be populated here -->
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="lg:col-span-1">
-            <div class="card bg-base-100 shadow-xl">
-                <div class="card-body">
-                    <h3 class="card-title">Quick Actions</h3>
-                    <div class="flex flex-col gap-2">
-                        <button class="btn btn-primary btn-sm" onclick="openCameraFeed()">
-                            <span>📹</span> View Live Feed
-                        </button>
-                        <button class="btn btn-secondary btn-sm" onclick="testCameraConnection()">
-                            <span>🔧</span> Test Connection
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Map Setup Warning Modal -->
@@ -124,6 +49,18 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<style>
+/* Ensure map container has explicit height for Leaflet */
+#map { 
+    height: 600px !important; 
+}
+@media (min-width: 768px) {
+    #map { 
+        height: 900px !important; 
+    }
+}
+</style>
+
 <!-- Map JavaScript -->
 <script src="{{ url_for('static', filename='js/simple-map.js') }}"></script>
 
@@ -137,41 +74,17 @@ document.addEventListener('DOMContentLoaded', function() {
             zoom: {{ config.MAP_DEFAULT_ZOOM }},
             minZoom: {{ config.MAP_MIN_ZOOM }},
             maxZoom: {{ config.MAP_MAX_ZOOM }},
-            tileUrlTemplate: '{{ config.MAP_TILE_URL_TEMPLATE }}',
+            tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             markerColors: {{ config.CAMERA_MARKER_COLORS | tojson | safe }}
         };
         
         window.mapInstance = new SurveillanceMap('map', mapConfig);
         window.mapInstance.initialize();
         
-        // Start auto-refresh if enabled
-        const autoRefreshCheckbox = document.getElementById('autoRefresh');
-        autoRefreshCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                window.mapInstance.startAutoRefresh();
-            } else {
-                window.mapInstance.stopAutoRefresh();
-            }
-        });
     } else {
         console.error('SurveillanceMap class not loaded');
     }
 });
 
-// Global functions for quick actions
-function openCameraFeed() {
-    const selectedCamera = window.mapInstance?.getSelectedCamera();
-    if (selectedCamera) {
-        window.open(`/api/cameras/${selectedCamera.id}/stream`, '_blank');
-    }
-}
-
-function testCameraConnection() {
-    const selectedCamera = window.mapInstance?.getSelectedCamera();
-    if (selectedCamera) {
-        // You could implement a test connection function here
-        alert('Testing connection for: ' + selectedCamera.name);
-    }
-}
 </script>
 {% endblock %}

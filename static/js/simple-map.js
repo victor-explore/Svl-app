@@ -10,15 +10,12 @@ class SurveillanceMap {
         this.map = null;
         this.markers = new Map();
         this.selectedCamera = null;
-        this.autoRefreshInterval = null;
-        this.refreshIntervalMs = 5000; // 5 seconds
     }
 
     initialize() {
         try {
             this.initializeMap();
             this.loadCameras();
-            this.startAutoRefresh();
             console.log('Surveillance map initialized successfully');
         } catch (error) {
             console.error('Failed to initialize map:', error);
@@ -37,10 +34,10 @@ class SurveillanceMap {
             attributionControl: false
         });
 
-        // Add offline tile layer
+        // Add online tile layer
         const tileLayer = L.tileLayer(this.config.tileUrlTemplate, {
             attribution: '© OpenStreetMap contributors',
-            errorTileUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' // Transparent 1x1 pixel
+            maxZoom: 19
         });
 
         tileLayer.addTo(this.map);
@@ -50,26 +47,9 @@ class SurveillanceMap {
             console.warn('Tile loading error:', e);
         });
 
-        // Test if tiles are available
-        this.testTileAvailability();
+        console.log('Map initialized with center:', this.config.center, 'zoom:', this.config.zoom);
     }
 
-    async testTileAvailability() {
-        const testUrl = this.config.tileUrlTemplate
-            .replace('{z}', this.config.zoom)
-            .replace('{x}', Math.floor((this.config.center[1] + 180) / 360 * Math.pow(2, this.config.zoom)))
-            .replace('{y}', Math.floor((1 - Math.log(Math.tan(this.config.center[0] * Math.PI / 180) + 1 / Math.cos(this.config.center[0] * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, this.config.zoom)));
-
-        try {
-            const response = await fetch(testUrl);
-            if (!response.ok) {
-                throw new Error('Tiles not available');
-            }
-        } catch (error) {
-            console.warn('Offline tiles not available, showing setup modal');
-            setTimeout(() => this.showSetupModal(), 1000);
-        }
-    }
 
     async loadCameras() {
         try {
@@ -78,7 +58,6 @@ class SurveillanceMap {
             
             if (data.success) {
                 this.updateCameraMarkers(data.cameras);
-                this.updateCameraStats(data.cameras);
             } else {
                 console.error('Failed to load cameras:', data.error);
             }
@@ -176,12 +155,6 @@ class SurveillanceMap {
                     <div><strong>Coordinates:</strong> ${camera.latitude.toFixed(6)}, ${camera.longitude.toFixed(6)}</div>
                     ${camera.rtsp_url ? `<div><strong>Stream:</strong> <code class="text-xs">${camera.rtsp_url}</code></div>` : ''}
                 </div>
-                <div class="mt-3 flex gap-2">
-                    <button onclick="window.open('/api/cameras/${camera.id}/stream', '_blank')" 
-                            class="btn btn-primary btn-xs">View Stream</button>
-                    <button onclick="selectCameraDetails(${camera.id})" 
-                            class="btn btn-secondary btn-xs">Details</button>
-                </div>
             </div>
         `;
     }
@@ -201,65 +174,10 @@ class SurveillanceMap {
 
     selectCamera(camera) {
         this.selectedCamera = camera;
-        this.showCameraDetails(camera);
     }
 
-    showCameraDetails(camera) {
-        const panel = document.getElementById('cameraInfoPanel');
-        const nameEl = document.getElementById('selectedCameraName');
-        const detailsEl = document.getElementById('selectedCameraDetails');
 
-        nameEl.textContent = camera.name || camera.unique_id;
-        detailsEl.innerHTML = `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <h4 class="font-semibold mb-2">Basic Information</h4>
-                    <div class="space-y-2 text-sm">
-                        <div><strong>Status:</strong> ${this.getStatusBadgeHtml(camera.status)}</div>
-                        <div><strong>Unique ID:</strong> ${camera.unique_id}</div>
-                        <div><strong>Location:</strong> ${camera.latitude.toFixed(6)}, ${camera.longitude.toFixed(6)}</div>
-                    </div>
-                </div>
-                <div>
-                    <h4 class="font-semibold mb-2">Connection Details</h4>
-                    <div class="space-y-2 text-sm">
-                        <div><strong>RTSP URL:</strong> <code class="text-xs break-all">${camera.rtsp_url || 'Not set'}</code></div>
-                        <div><strong>Username:</strong> ${camera.username || 'None'}</div>
-                        <div><strong>Last Update:</strong> ${new Date().toLocaleTimeString()}</div>
-                    </div>
-                </div>
-            </div>
-        `;
 
-        panel.style.display = 'block';
-    }
-
-    updateCameraStats(cameras) {
-        const total = cameras.length;
-        const online = cameras.filter(c => c.status === 'online').length;
-        const offline = cameras.filter(c => c.status === 'offline').length;
-
-        document.getElementById('totalCameras').textContent = total;
-        document.getElementById('onlineCameras').textContent = online;
-        document.getElementById('offlineCameras').textContent = offline;
-    }
-
-    startAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-        }
-
-        this.autoRefreshInterval = setInterval(() => {
-            this.loadCameras();
-        }, this.refreshIntervalMs);
-    }
-
-    stopAutoRefresh() {
-        if (this.autoRefreshInterval) {
-            clearInterval(this.autoRefreshInterval);
-            this.autoRefreshInterval = null;
-        }
-    }
 
     getSelectedCamera() {
         return this.selectedCamera;
@@ -294,14 +212,6 @@ class SurveillanceMap {
     }
 }
 
-// Global function for camera details button
-function selectCameraDetails(cameraId) {
-    if (window.mapInstance) {
-        const cameras = Array.from(window.mapInstance.markers.keys());
-        // This would need the full camera object, but for now just close popup
-        window.mapInstance.map.closePopup();
-    }
-}
 
 // Add CSS for marker animations
 const style = document.createElement('style');
