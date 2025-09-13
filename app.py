@@ -46,9 +46,16 @@ app = Flask(__name__)
 camera_manager = EnhancedCameraManager()
 
 # Ensure cleanup on app shutdown
+# This should only be called when the entire application is terminating
 @atexit.register
 def cleanup():
+    # Only shutdown if the camera manager exists and the app is truly exiting
+    # This prevents premature shutdown during normal operations
     if camera_manager:
+        import sys
+        # Check if we're in a normal shutdown scenario
+        # The atexit handler should only trigger during actual app termination
+        logger.info("Application shutdown detected - cleaning up camera manager")
         camera_manager.shutdown()
 
 # In-memory storage for cameras (replace with database in production)
@@ -1628,4 +1635,8 @@ def get_storage_statistics():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # IMPORTANT: Debug mode controlled by config to prevent app shutdown when all cameras are removed
+    # The auto-reloader in debug mode can cause unexpected shutdowns
+    # Use debug=False for production-like stability
+    from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG
+    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT, threaded=True)

@@ -30,7 +30,9 @@ SHOW_DELETION_FEEDBACK_MS = 300            # Brief "deleting" state duration in 
 # Web Interface Settings
 FLASK_HOST = "0.0.0.0"
 FLASK_PORT = 5000
-FLASK_DEBUG = True
+FLASK_DEBUG = False  # IMPORTANT: Set to False to prevent app shutdown when all cameras are removed
+                     # Debug mode can cause unexpected shutdowns with the auto-reloader
+                     # Only set to True for development/debugging purposes
 
 # Camera Status Constants
 CAMERA_STATUS_ONLINE = "online"

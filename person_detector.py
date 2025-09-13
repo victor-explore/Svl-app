@@ -7,9 +7,11 @@ import cv2
 import numpy as np
 import logging
 import time
+import traceback
+import inspect
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
-from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH, 
+from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH,
                    PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT)
 
 # Import additional modules for diagnostics
@@ -72,31 +74,49 @@ class PersonDetector:
     def __init__(self, model_path: str = 'yolov8n.pt', confidence_threshold: float = 0.5):
         """
         Initialize the person detector
-        
+
         Args:
             model_path: Path to YOLOv8 model file
             confidence_threshold: Minimum confidence for valid detection
         """
+        # DIAGNOSTIC LOGGING - Track when and from where PersonDetector is created
+        current_time = datetime.now()
+        logger.warning(f"🚨 DIAGNOSTIC: PersonDetector.__init__ called at {current_time.strftime('%H:%M:%S.%f')[:-3]}")
+        logger.warning(f"🚨 DIAGNOSTIC: Model path: {model_path}, confidence: {confidence_threshold}")
+
+        # Log the call stack to see what triggered this initialization
+        try:
+            frame = inspect.currentframe()
+            call_stack = []
+            while frame:
+                filename = frame.f_code.co_filename
+                function_name = frame.f_code.co_name
+                line_number = frame.f_lineno
+                call_stack.append(f"{filename}:{line_number} in {function_name}()")
+                frame = frame.f_back
+
+            logger.warning("🚨 DIAGNOSTIC: Call stack for PersonDetector creation:")
+            for i, call in enumerate(call_stack[:8]):  # Show top 8 stack frames
+                logger.warning(f"🚨   [{i}] {call}")
+
+        except Exception as e:
+            logger.error(f"Failed to get call stack: {e}")
+
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
         self.model = None
         self.is_initialized = False
-        
+
         # Performance tracking
         self.total_detections = 0
         self.total_frames_processed = 0
         self.average_inference_time = 0.0
         self.last_detection_time = None
         self.first_inference = True
-        
-        logger.info(f"PersonDetector initializing with model: {model_path}, confidence: {confidence_threshold}")
-        
-        # Force immediate model initialization instead of lazy loading
-        success = self.initialize_model()
-        if success:
-            logger.info(f"PersonDetector successfully initialized with model: {model_path}")
-        else:
-            logger.error(f"PersonDetector failed to initialize model: {model_path}")
+
+        logger.info(f"PersonDetector created with model: {model_path}, confidence: {confidence_threshold}")
+        logger.info("Model will be loaded lazily on first detection call")
+        logger.warning(f"🚨 DIAGNOSTIC: PersonDetector.__init__ completed at {datetime.now().strftime('%H:%M:%S.%f')[:-3]} - NO MODEL LOADING")
 
     def initialize_model(self) -> bool:
         """
@@ -106,10 +126,15 @@ class PersonDetector:
         if self.is_initialized:
             logger.debug("Model already initialized, skipping")
             return True
-            
+
+        # DIAGNOSTIC LOGGING - Track model initialization timing
+        start_time = datetime.now()
+        logger.warning(f"🚨 DIAGNOSTIC: initialize_model() started at {start_time.strftime('%H:%M:%S.%f')[:-3]}")
+
         try:
             logger.info(f"Downloading and loading YOLOv8 model: {self.model_path}")
             logger.info("This may take a few moments on first run as the model is downloaded...")
+            logger.warning(f"🚨 DIAGNOSTIC: About to load YOLO model from {self.model_path}")
             
             # GPU/Device detection
             if TORCH_AVAILABLE:
@@ -127,11 +152,21 @@ class PersonDetector:
                 logger.warning("PyTorch not available - cannot detect GPU")
             
             from ultralytics import YOLO
+            logger.warning(f"🚨 DIAGNOSTIC: Importing YOLO and creating model object...")
+            model_load_start = datetime.now()
             self.model = YOLO(self.model_path)
+            model_load_end = datetime.now()
+            model_load_duration = (model_load_end - model_load_start).total_seconds()
+            logger.warning(f"🚨 DIAGNOSTIC: YOLO model object created in {model_load_duration:.3f} seconds")
+
             self.is_initialized = True
-            
+
             logger.info("YOLOv8 model loaded successfully!")
             logger.info(f"Model classes: {len(self.model.names)} (person is class 0)")
+
+            # DIAGNOSTIC LOGGING - Track total initialization time
+            total_duration = (datetime.now() - start_time).total_seconds()
+            logger.warning(f"🚨 DIAGNOSTIC: initialize_model() completed in {total_duration:.3f} seconds")
             
             # Log model device after loading
             try:
@@ -154,7 +189,11 @@ class PersonDetector:
             
             return True
         except Exception as e:
+            error_time = datetime.now()
             logger.error(f"Failed to initialize YOLOv8 model: {e}")
+            logger.warning(f"🚨 DIAGNOSTIC: Model initialization FAILED at {error_time.strftime('%H:%M:%S.%f')[:-3]}")
+            error_duration = (error_time - start_time).total_seconds()
+            logger.warning(f"🚨 DIAGNOSTIC: Failed initialization took {error_duration:.3f} seconds")
             import traceback
             logger.error(f"Model initialization traceback: {traceback.format_exc()}")
             self.is_initialized = False
@@ -422,11 +461,40 @@ class PersonDetectionManager:
 
     def get_detector(self, camera_id: int, **kwargs) -> PersonDetector:
         """Get or create detector for camera"""
+
+        # DIAGNOSTIC LOGGING - Track when detector is requested
+        current_time = datetime.now()
+        logger.warning(f"🚨 DIAGNOSTIC: get_detector() called for camera {camera_id} at {current_time.strftime('%H:%M:%S.%f')[:-3]}")
+        logger.warning(f"🚨 DIAGNOSTIC: Current detectors: {list(self.detectors.keys())}")
+        logger.warning(f"🚨 DIAGNOSTIC: Kwargs: {kwargs}")
+
+        # Log call stack for detector requests
+        try:
+            frame = inspect.currentframe()
+            call_stack = []
+            for i in range(5):  # Show top 5 stack frames
+                if frame:
+                    filename = frame.f_code.co_filename.split('\\')[-1]  # Just filename
+                    function_name = frame.f_code.co_name
+                    line_number = frame.f_lineno
+                    call_stack.append(f"{filename}:{line_number} in {function_name}()")
+                    frame = frame.f_back
+
+            logger.warning("🚨 DIAGNOSTIC: Call stack for get_detector():")
+            for i, call in enumerate(call_stack):
+                logger.warning(f"🚨   [{i}] {call}")
+        except Exception as e:
+            logger.error(f"Failed to get call stack: {e}")
+
         if camera_id not in self.detectors:
+            logger.warning(f"🚨 DIAGNOSTIC: Creating NEW PersonDetector for camera {camera_id}")
             self.detectors[camera_id] = PersonDetector(**kwargs)
             self.detection_enabled[camera_id] = True
             self.detection_histories[camera_id] = []
-        
+            logger.warning(f"🚨 DIAGNOSTIC: PersonDetector created for camera {camera_id}")
+        else:
+            logger.warning(f"🚨 DIAGNOSTIC: Returning EXISTING PersonDetector for camera {camera_id}")
+
         return self.detectors[camera_id]
 
     def enable_detection(self, camera_id: int, enabled: bool = True):
@@ -477,14 +545,36 @@ class PersonDetectionManager:
 
     def cleanup_camera(self, camera_id: int):
         """Clean up resources for a camera"""
+
+        # DIAGNOSTIC LOGGING - Track cleanup timing and state
+        cleanup_time = datetime.now()
+        logger.warning(f"🚨 DIAGNOSTIC: cleanup_camera() called for camera {camera_id} at {cleanup_time.strftime('%H:%M:%S.%f')[:-3]}")
+        logger.warning(f"🚨 DIAGNOSTIC: Detectors before cleanup: {list(self.detectors.keys())}")
+        logger.warning(f"🚨 DIAGNOSTIC: Detection enabled before cleanup: {list(self.detection_enabled.keys())}")
+
+        cleanup_actions = []
         if camera_id in self.detectors:
             del self.detectors[camera_id]
+            cleanup_actions.append("detector")
         if camera_id in self.detection_enabled:
             del self.detection_enabled[camera_id]
+            cleanup_actions.append("detection_enabled")
         if camera_id in self.detection_histories:
             del self.detection_histories[camera_id]
-        
+            cleanup_actions.append("detection_histories")
+
+        logger.warning(f"🚨 DIAGNOSTIC: Cleaned up: {cleanup_actions} for camera {camera_id}")
+        logger.warning(f"🚨 DIAGNOSTIC: Detectors after cleanup: {list(self.detectors.keys())}")
         logger.info(f"Cleaned up detection resources for camera {camera_id}")
 
 # Global detection manager instance
 detection_manager = PersonDetectionManager()
+
+# DIAGNOSTIC LOGGING - Track when the global detection manager is accessed
+original_get_detector = detection_manager.get_detector
+
+def logged_get_detector(camera_id: int, **kwargs):
+    logger.warning(f"🚨 DIAGNOSTIC: Global detection_manager.get_detector() called for camera {camera_id}")
+    return original_get_detector(camera_id, **kwargs)
+
+detection_manager.get_detector = logged_get_detector
