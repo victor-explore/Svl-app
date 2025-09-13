@@ -404,7 +404,16 @@ class CameraWorker(threading.Thread):
         logger.info(f"[{self.name}] Stopping camera worker...")
         self._stop_event.set()
         self.detection_pending = False  # Clear pending detection flag
-        
+
+        # Clean up detection service registration
+        if PERSON_DETECTION_ENABLED and self.accepting_detection_frames:
+            try:
+                detection_service = get_detection_service()
+                detection_service.unregister_camera(self.camera_id)
+                logger.info(f"[{self.name}] Unregistered from detection service during stop")
+            except Exception as e:
+                logger.warning(f"[{self.name}] Error during detection service unregistration: {e}")
+
         # Force release VideoCapture if still active
         with self._capture_lock:
             if self._video_capture is not None:
@@ -492,11 +501,20 @@ class EnhancedCameraManager:
             try:
                 worker = self.workers[camera_id]
 
-                # 1. Stop worker thread and release VideoCapture
+                # 1. Clean up detection service registration first
+                if PERSON_DETECTION_ENABLED:
+                    try:
+                        detection_service = get_detection_service()
+                        detection_service.unregister_camera(camera_id)
+                        logger.info(f"Unregistered camera {camera_id} from detection service")
+                    except Exception as e:
+                        logger.warning(f"Error unregistering camera {camera_id} from detection service: {e}")
+
+                # 2. Stop worker thread and release VideoCapture
                 logger.info(f"Stopping camera worker for {camera_id}")
                 worker.stop()  # This handles VideoCapture.release() - the critical part
 
-                # 2. Wait reasonable time for cleanup (single timeout, no progressive complexity)
+                # 3. Wait reasonable time for cleanup (single timeout, no progressive complexity)
                 if worker.is_alive():
                     logger.info(f"Waiting up to 3 seconds for camera {camera_id} thread to stop")
                     worker.join(timeout=3)  # Single 3-second timeout
@@ -504,7 +522,7 @@ class EnhancedCameraManager:
                     if worker.is_alive():
                         logger.warning(f"Camera {camera_id} thread did not stop within 3 seconds, continuing anyway")
 
-                # 3. Remove from tracking (even if thread didn't die)
+                # 4. Remove from tracking (even if thread didn't die)
                 del self.workers[camera_id]
 
                 logger.info(f"Camera {camera_id} removed using simple cleanup")

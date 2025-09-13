@@ -226,5 +226,38 @@ class DetectionImageStorage:
             logger.error(f"Error getting storage stats: {e}")
             return {'total_images': 0, 'total_size_bytes': 0}
 
+    def save_detection_image(self, frame: np.ndarray, camera_id: int,
+                           timestamp: datetime, confidence: float) -> str:
+        """
+        Save detection image (wrapper for save_full_frame_image)
+
+        Args:
+            frame: OpenCV frame (BGR format) - already annotated with detection
+            camera_id: Camera identifier
+            timestamp: Detection timestamp
+            confidence: Detection confidence score
+
+        Returns:
+            Relative path to saved image
+        """
+        try:
+            # Generate camera name from ID if not available
+            camera_name = f"Camera_{camera_id}"
+
+            # Create detection info for annotation (confidence already in frame)
+            detections = [{'confidence': confidence, 'bbox': []}]  # Empty bbox since already drawn
+
+            # Use existing save_full_frame_image method
+            return self.save_full_frame_image(
+                frame=frame,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                timestamp=timestamp,
+                detections=detections
+            )
+        except Exception as e:
+            logger.error(f"Error in save_detection_image wrapper: {e}")
+            return None
+
 # Global image storage instance
 image_storage = DetectionImageStorage()
