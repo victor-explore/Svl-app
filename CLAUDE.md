@@ -37,6 +37,15 @@ python -c "from database import db_manager; db_manager.initialize(); print('Data
 curl -X POST http://localhost:5000/api/cameras/1/detection/enable \
   -H "Content-Type: application/json" \
   -d '{"enabled": true}'
+
+# Run individual test scripts
+python test_database_integration.py    # Test database models and operations
+python test_detection_performance.py   # Test YOLOv8 detection performance
+python test_detection_service.py      # Test detection service integration
+python test_single_yolo.py           # Test single YOLOv8 inference
+
+# Setup offline map tiles (for geographic features)
+python scripts/setup_map.py
 ```
 
 ## Project Architecture
@@ -168,3 +177,34 @@ curl -X POST http://localhost:5000/api/cameras/1/detection/enable \
 - YOLOv8 model downloaded automatically on first detection attempt
 - Database tables created automatically via SQLAlchemy
 - Cameras auto-initialize on startup using `EnhancedCameraManager`
+
+## Configuration Files
+
+**user_settings.json** (Runtime Configuration)
+- RTSP connection timeouts and reconnection parameters
+- Frame processing settings (FPS, quality, queue sizes)
+- Person detection parameters (confidence, intervals, resize dimensions)
+- Database and storage settings
+
+**requirements.txt** (Dependencies)
+- Core: Flask, SQLAlchemy, OpenCV, Ultralytics (YOLOv8)
+- Computer vision: numpy, Pillow for image processing
+- Minimal dependency footprint for deployment stability
+
+## File Structure
+```
+├── app.py                    # Main Flask application
+├── camera_manager.py         # Multi-threaded RTSP handling
+├── config.py                 # System configuration
+├── database.py              # SQLAlchemy models and DB manager
+├── person_detector.py       # YOLOv8 person detection
+├── detection_storage.py     # Image storage management
+├── user_settings.json       # Runtime configuration
+├── yolov8n.pt              # YOLOv8 model file (auto-downloaded)
+├── detection_records.db     # SQLite database
+├── detection_images/        # Date-organized detection images
+├── static/                  # Web assets and offline map tiles
+├── templates/               # Jinja2 HTML templates
+├── scripts/                 # Utility scripts (map setup)
+└── test_*.py               # Individual test scripts
+```
