@@ -48,10 +48,20 @@ logger.info("Initializing DetectionService...")
 # Initialize enhanced camera manager
 camera_manager = EnhancedCameraManager()
 
-# Start global detection worker if detection is enabled
+# Start DetectionService with single YOLO model if detection is enabled
 if PERSON_DETECTION_ENABLED:
-    detection_worker = person_detector.start_detection_worker()
-    logger.info("Global detection worker started successfully - YOLO model will be loaded on first detection")
+    logger.info("========================================")
+    logger.info("Starting Person Detection System...")
+    logger.info("Architecture: ONE YOLO model for ALL cameras")
+    logger.info("========================================")
+
+    detection_service = person_detector.DetectionService()
+    person_detector.set_detection_service(detection_service)
+    detection_service.start()
+
+    logger.info("DetectionService started successfully!")
+    logger.info("Single YOLO model will be shared across all camera streams")
+    logger.info("========================================")
 else:
     logger.info("Person detection is disabled in configuration")
 
@@ -68,11 +78,13 @@ def cleanup():
         logger.info("Application shutdown detected - cleaning up camera manager")
         camera_manager.shutdown()
 
-    # Shutdown the global detection worker
+    # Shutdown the DetectionService
     if PERSON_DETECTION_ENABLED:
-        logger.info("Shutting down global detection worker...")
-        person_detector.stop_detection_worker()
-        logger.info("Global detection worker shutdown complete")
+        logger.info("Shutting down DetectionService...")
+        detection_service = person_detector.get_detection_service()
+        if detection_service:
+            detection_service.shutdown()
+        logger.info("DetectionService shutdown complete")
 
 # In-memory storage for cameras (replace with database in production)
 cameras = []
@@ -962,16 +974,19 @@ def get_system_status():
         # Calculate total frames captured
         total_frames = sum(status['frames_captured'] for status in all_statuses.values() if status)
 
-        # Get detection queue status
+        # Get detection service status
         detection_queue_status = {}
         if PERSON_DETECTION_ENABLED:
-            detection_queue = person_detector.get_detection_queue()
-            detection_queue_status = {
-                'queue_size': detection_queue.qsize(),
-                'queue_max_size': detection_queue.max_size,
-                'queue_full': detection_queue.is_full(),
-                'accepting_frames': detection_queue.accepting_frames
-            }
+            detection_service = person_detector.get_detection_service()
+            if detection_service:
+                stats = detection_service.get_stats()
+                detection_queue_status = {
+                    'service_running': stats['is_running'],
+                    'model_initialized': stats['model_initialized'],
+                    'input_queue_size': stats['input_queue_size'],
+                    'registered_cameras': len(stats['registered_cameras']),
+                    'camera_list': stats['registered_cameras']
+                }
 
         return jsonify({
             'success': True,

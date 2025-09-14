@@ -13,7 +13,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple, Any, List
 from config import *
-from person_detector import DetectionResult, get_detection_service, get_detection_queue
+from person_detector import DetectionResult, get_detection_service
 
 # Import database and image storage only if enabled
 if DATABASE_ENABLED:
@@ -80,6 +80,9 @@ class CameraWorker(threading.Thread):
         # OpenCV VideoCapture object for proper cleanup
         self._video_capture = None
         self._capture_lock = threading.Lock()
+
+        # Track registration with detection service to avoid repeated registration
+        self.is_registered_with_detection = False
 
         self.daemon = True
         logger.info(f"[{self.name}] Camera worker initialized with detection {'enabled' if self.accepting_detection_frames else 'disabled'}")
@@ -229,23 +232,45 @@ class CameraWorker(threading.Thread):
                 detections = []
                 detection_count = 0
 
-                # Submit frame to global detection queue if enabled
+                # Submit frame to detection service if enabled
                 if self.accepting_detection_frames:
                     self.frame_count_for_detection += 1
 
                     # Submit frame every Nth frame to control detection frequency
                     if self.frame_count_for_detection >= PERSON_DETECTION_INTERVAL:
-                        detection_queue = get_detection_queue()
+                        detection_service = get_detection_service()
 
-                        # Try to submit frame to global queue
-                        submitted = detection_queue.submit_frame(self.camera_id, frame, self._last_frame_time)
+                        if detection_service:
+                            # Register camera with detection service only once
+                            if not self.is_registered_with_detection:
+                                detection_service.register_camera(self.camera_id)
+                                self.is_registered_with_detection = True
 
-                        if submitted:
-                            self.frame_count_for_detection = 0
-                            logger.debug(f"[{self.name}] Frame submitted to global detection queue")
+                            # Try to submit frame to detection service
+                            submitted = detection_service.submit_frame(self.camera_id, frame, self._last_frame_time)
+
+                            if submitted:
+                                self.frame_count_for_detection = 0
+                                logger.debug(f"[{self.name}] Frame submitted to detection service")
+
+                                # Try to get detection result (non-blocking)
+                                result = detection_service.get_result(self.camera_id, timeout=0.01)
+                                if result and result['success']:
+                                    detections = result['detections']
+                                    if detections:
+                                        # Update detection tracking
+                                        self.last_detection_count = len(detections)
+                                        self.total_persons_detected += len(detections)
+                                        self.last_detection_time = datetime.now()
+
+                                        # Save detections to storage
+                                        self._save_detections_to_storage(frame, detections)
+                                        logger.info(f"[{self.name}] Detected {len(detections)} person(s)")
+                            else:
+                                # Service queue is full - keep counting frames until next interval
+                                logger.debug(f"[{self.name}] Detection service queue full, will retry next interval")
                         else:
-                            # Queue is full - keep counting frames until next interval
-                            logger.debug(f"[{self.name}] Detection queue full, will retry next interval")
+                            logger.debug(f"[{self.name}] Detection service not available")
                 else:
                     logger.debug(f"[{self.name}] Not accepting detection frames")
                 
@@ -405,14 +430,8 @@ class CameraWorker(threading.Thread):
         self._stop_event.set()
         self.detection_pending = False  # Clear pending detection flag
 
-        # Clean up detection service registration
-        if PERSON_DETECTION_ENABLED and self.accepting_detection_frames:
-            try:
-                detection_service = get_detection_service()
-                detection_service.unregister_camera(self.camera_id)
-                logger.info(f"[{self.name}] Unregistered from detection service during stop")
-            except Exception as e:
-                logger.warning(f"[{self.name}] Error during detection service unregistration: {e}")
+        # Note: Detection service unregistration is handled by remove_camera_simple() in the manager
+        # This avoids double unregistration
 
         # Force release VideoCapture if still active
         with self._capture_lock:
@@ -437,8 +456,7 @@ class CameraWorker(threading.Thread):
             except queue.Empty:
                 break
         
-        # Note: No cleanup needed for global detection queue
-        # The queue-based architecture handles cleanup automatically
+        # Note: Detection service unregistration handled above
         
         # Wait for thread to finish
         if self.is_alive():

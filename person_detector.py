@@ -13,8 +13,7 @@ import queue
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
 from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH,
-                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT,
-                   DETECTION_QUEUE_MAX_SIZE, DETECTION_QUEUE_TIMEOUT)
+                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT)
 
 # Import additional modules for diagnostics
 try:
@@ -177,7 +176,9 @@ class PersonDetector:
                             detections.append(detection)
                             person_count += 1
             
-            logger.debug(f"Found {person_count} person(s)")
+            # Only log when persons are actually detected to reduce noise
+            if person_count > 0:
+                logger.debug(f"Found {person_count} person(s)")
 
             return detections, person_count
             
@@ -289,8 +290,12 @@ class DetectionService(threading.Thread):
         logger.info("DetectionService thread started")
         self.is_running = True
 
-        # Initialize the detector once when thread starts
-        logger.info("Initializing YOLO model in DetectionService...")
+        # Initialize the detector once when thread starts - SINGLE MODEL FOR ALL CAMERAS
+        logger.info("========================================")
+        logger.info("Initializing SINGLE YOLO model in DetectionService...")
+        logger.info("This ONE model will be shared by ALL camera streams")
+        logger.info("========================================")
+
         self.detector = PersonDetector(self.model_path, self.confidence_threshold)
 
         # Initialize model immediately
@@ -299,7 +304,12 @@ class DetectionService(threading.Thread):
             self.is_running = False
             return
 
-        logger.info("YOLO model successfully loaded in DetectionService")
+        logger.info("========================================")
+        logger.info("SUCCESS: Single YOLO model loaded and ready!")
+        logger.info(f"Model path: {self.model_path}")
+        logger.info(f"Confidence threshold: {self.confidence_threshold}")
+        logger.info("All cameras will share this single model instance")
+        logger.info("========================================")
 
         while self.is_running:
             try:
@@ -335,7 +345,7 @@ class DetectionService(threading.Thread):
                         if next_item and next_item[0] == camera_id:
                             # Found a newer frame from same camera, use it instead
                             newest_item_for_camera = next_item
-                            logger.debug(f"Skipping stale frame for camera {camera_id}, using newer one")
+                            # Don't log frame skipping to reduce noise - this is normal operation
                         else:
                             # Different camera or shutdown signal, keep it for later
                             queue_items.append(next_item)
@@ -447,13 +457,13 @@ class DetectionService(threading.Thread):
         if camera_id not in self.output_queues:
             self.output_queues[camera_id] = queue.Queue(maxsize=10)
             self.camera_settings[camera_id] = settings or {}
-            logger.info(f"Registered camera {camera_id} with DetectionService")
+            logger.info(f"Camera {camera_id} registered with DetectionService (using shared YOLO model)")
         else:
-            # Camera already registered, clear any stale results
+            # Camera already registered, silently clear any stale results
             try:
                 while not self.output_queues[camera_id].empty():
                     self.output_queues[camera_id].get_nowait()
-                logger.debug(f"Cleared stale results for re-registered camera {camera_id}")
+                # No logging for already registered cameras to reduce noise
             except:
                 pass
 
@@ -540,172 +550,8 @@ class DetectionService(threading.Thread):
 
 
 
-class GlobalDetectionQueue:
-    """
-    Centralized queue for all camera detection frames
-    Fixed size queue to prevent memory issues and provide backpressure control
-    """
-
-    def __init__(self, max_size: int = DETECTION_QUEUE_MAX_SIZE):
-        self.max_size = max_size
-        self.queue = queue.Queue(maxsize=max_size)
-        self.lock = threading.Lock()
-        self.accepting_frames = True
-        logger.info(f"GlobalDetectionQueue initialized with max_size={max_size}")
-
-    def submit_frame(self, camera_id: int, frame: np.ndarray, timestamp: datetime) -> bool:
-        """Submit a frame for detection processing"""
-        try:
-            if not self.accepting_frames:
-                return False
-
-            frame_data = {
-                'camera_id': camera_id,
-                'frame': frame.copy(),
-                'timestamp': timestamp
-            }
-
-            self.queue.put(frame_data, block=False)
-            logger.debug(f"Frame submitted to detection queue from camera {camera_id}")
-            return True
-
-        except queue.Full:
-            logger.debug(f"Detection queue full, rejecting frame from camera {camera_id}")
-            return False
-        except Exception as e:
-            logger.error(f"Error submitting frame to detection queue: {e}")
-            return False
-
-    def get_frame(self, timeout: float = DETECTION_QUEUE_TIMEOUT) -> Optional[dict]:
-        """Get the next frame for processing"""
-        try:
-            return self.queue.get(timeout=timeout)
-        except queue.Empty:
-            return None
-        except Exception as e:
-            logger.error(f"Error getting frame from detection queue: {e}")
-            return None
-
-    def task_done(self):
-        """Mark a queue task as done"""
-        self.queue.task_done()
-
-    def is_full(self) -> bool:
-        """Check if the queue is full"""
-        return self.queue.full()
-
-    def is_empty(self) -> bool:
-        """Check if the queue is empty"""
-        return self.queue.empty()
-
-    def qsize(self) -> int:
-        """Get current queue size"""
-        return self.queue.qsize()
-
-    def set_accepting_frames(self, accepting: bool):
-        """Set whether to accept new frames"""
-        with self.lock:
-            self.accepting_frames = accepting
-            logger.info(f"Detection queue accepting_frames set to {accepting}")
-
-
-class DetectionWorkerThread(threading.Thread):
-    """
-    Background thread that processes frames from the global detection queue
-    Handles YOLO inference and result storage
-    """
-
-    def __init__(self, detection_queue: GlobalDetectionQueue):
-        super().__init__()
-        self.detection_queue = detection_queue
-        self.shared_detector = None
-        self.running = False
-        self.daemon = True
-        self.name = "DetectionWorker"
-        logger.info("DetectionWorkerThread initialized")
-
-    def start_processing(self):
-        """Start the detection worker thread"""
-        self.running = True
-        self.start()
-        logger.info("DetectionWorkerThread started")
-
-    def stop_processing(self):
-        """Stop the detection worker thread"""
-        self.running = False
-        logger.info("DetectionWorkerThread stopping...")
-
-
-    def process_frame(self, frame_data: dict):
-        """Process a single frame through YOLO detection"""
-        camera_id = frame_data['camera_id']
-        frame = frame_data['frame']
-        timestamp = frame_data['timestamp']
-
-        try:
-            # Initialize shared detector if not already done
-            if self.shared_detector is None:
-                self.shared_detector = PersonDetector()
-                logger.info("Created shared PersonDetector for all cameras")
-
-            # Run detection
-            detections, person_count = self.shared_detector.detect_persons(frame)
-
-            if detections:
-                logger.info(f"Detected {person_count} person(s) in camera {camera_id}")
-
-
-                # Save detections to database and storage
-                from detection_storage import DetectionImageStorage
-                storage = DetectionImageStorage()
-
-                # Save detection images with annotations
-                for detection in detections:
-                    try:
-                        # Draw bounding box on frame copy
-                        annotated_frame = frame.copy()
-                        x1, y1, x2, y2 = detection.bbox
-                        cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-
-                        # Save annotated image
-                        storage.save_detection_image(annotated_frame, camera_id, timestamp, detection.confidence)
-
-                    except Exception as e:
-                        logger.error(f"Error saving detection image: {e}")
-
-            else:
-                logger.debug(f"No persons detected in camera {camera_id}")
-
-        except Exception as e:
-            logger.error(f"Error processing frame from camera {camera_id}: {e}")
-            logger.error(f"Detection processing error traceback: {traceback.format_exc()}")
-
-    def run(self):
-        """Main worker thread loop"""
-        logger.info("DetectionWorkerThread started processing")
-
-        while self.running:
-            # Get frame from queue
-            frame_data = self.detection_queue.get_frame(timeout=1.0)
-
-            if frame_data is None:
-                # Timeout - continue loop
-                continue
-
-            try:
-                # Process the frame
-                self.process_frame(frame_data)
-
-            finally:
-                # Mark task as done
-                self.detection_queue.task_done()
-
-        logger.info("DetectionWorkerThread stopped processing")
-
-
-# Global detection queue and worker
-global_detection_queue = GlobalDetectionQueue()
-detection_worker = None
+# DetectionWorkerThread and GlobalDetectionQueue have been removed
+# Using only DetectionService for single YOLO model shared across all cameras
 
 # Global detection service instance (created but not started yet)
 # Will be started by app.py at application startup
@@ -722,23 +568,4 @@ def set_detection_service(service):
     detection_service = service
     return detection_service
 
-def get_detection_queue():
-    """Get the global detection queue instance"""
-    return global_detection_queue
-
-def start_detection_worker():
-    """Start the global detection worker thread"""
-    global detection_worker
-    if detection_worker is None or not detection_worker.is_alive():
-        detection_worker = DetectionWorkerThread(global_detection_queue)
-        detection_worker.start_processing()
-        logger.info("Global detection worker started")
-    return detection_worker
-
-def stop_detection_worker():
-    """Stop the global detection worker thread"""
-    global detection_worker
-    if detection_worker and detection_worker.is_alive():
-        detection_worker.stop_processing()
-        detection_worker.join(timeout=5)
-        logger.info("Global detection worker stopped")
+# Functions for DetectionWorkerThread removed - using DetectionService instead
