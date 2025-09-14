@@ -94,39 +94,14 @@ cameras = []
 def initialize_cameras():
     """Initialize all cameras in the enhanced camera manager"""
     global cameras
-    
-    # First, try to load cameras from database (for persistence across restarts)
+
+    # Initialize database for detection storage (but don't restore cameras)
     try:
-        from database import db_manager, Camera
+        from database import db_manager
         db_manager.initialize()
-        
-        # Get all cameras from database
-        session = db_manager.get_session()
-        db_cameras = session.query(Camera).all()
-        session.close()
-        
-        # If we have no in-memory cameras but have database cameras, restore them
-        if len(cameras) == 0 and len(db_cameras) > 0:
-            for db_camera in db_cameras:
-                camera_dict = {
-                    'id': db_camera.id,
-                    'name': db_camera.name,
-                    'unique_id': db_camera.unique_id,
-                    'rtsp_url': db_camera.rtsp_url,
-                    'latitude': db_camera.latitude,
-                    'longitude': db_camera.longitude,
-                    'username': '',  # Default values for manager compatibility
-                    'password': '',
-                    'status': 'offline',
-                    'auto_start': True,
-                    'created_at': db_camera.created_at.timestamp() if db_camera.created_at else time.time()
-                }
-                cameras.append(camera_dict)
-                logger.info(f"Restored camera from database: {camera_dict['name']} (ID: {camera_dict['id']})")
-                
     except Exception as e:
-        logger.warning(f"Could not load cameras from database: {e}")
-        # Continue with in-memory cameras only
+        logger.warning(f"Could not initialize database: {e}")
+        # Continue without database functionality
     
     # Initialize all cameras in the camera manager
     for camera in cameras:
@@ -983,9 +958,7 @@ def get_system_status():
                 detection_queue_status = {
                     'service_running': stats['is_running'],
                     'model_initialized': stats['model_initialized'],
-                    'input_queue_size': stats['input_queue_size'],
-                    'registered_cameras': len(stats['registered_cameras']),
-                    'camera_list': stats['registered_cameras']
+                    'input_queue_size': stats['input_queue_size']
                 }
 
         return jsonify({

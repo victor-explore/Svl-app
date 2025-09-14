@@ -168,6 +168,3 @@ curl -X POST http://localhost:5000/api/cameras/1/detection/enable \
 - YOLOv8 model downloaded automatically on first detection attempt
 - Database tables created automatically via SQLAlchemy
 - Cameras auto-initialize on startup using `EnhancedCameraManager`
-
-# important-instruction-reminders
-Do what has been asked; nothing more, nothing less.

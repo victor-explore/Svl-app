@@ -13,7 +13,16 @@ import queue
 from typing import List, Dict, Tuple, Optional
 from datetime import datetime
 from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH,
-                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT)
+                   PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT,
+                   DATABASE_ENABLED, DETECTION_IMAGE_STORAGE_ENABLED,
+                   DETECTION_STORAGE_THROTTLING_ENABLED, DETECTION_STORAGE_INTERVAL_SECONDS)
+
+# Import database and image storage only if enabled
+if DATABASE_ENABLED:
+    from database import db_manager
+
+if DETECTION_IMAGE_STORAGE_ENABLED:
+    from detection_storage import image_storage
 
 # Import additional modules for diagnostics
 try:
@@ -271,19 +280,19 @@ class DetectionService(threading.Thread):
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
 
-        # Queues for communication
-        self.input_queue = queue.Queue(maxsize=50)  # Frames to process
-        self.output_queues = {}  # Dict[camera_id, Queue] for results
+        # Input queue for frames to process
+        self.input_queue = queue.Queue(maxsize=50)
 
         # Single PersonDetector instance that will be reused
         self.detector = None
         self.is_running = False
         self.shutdown_event = threading.Event()
 
-        # Detection settings per camera
-        self.camera_settings = {}  # Dict[camera_id, dict] for per-camera settings
+        # Storage throttling per camera
+        self.camera_last_storage_time = {}  # Dict[camera_id, timestamp]
 
         logger.info(f"DetectionService initialized with model: {model_path}")
+        logger.info("Simplified architecture: Direct storage, no output queues")
 
     def run(self):
         """Main detection loop - runs in separate thread"""
@@ -326,17 +335,12 @@ class DetectionService(threading.Thread):
                 if item is None:  # Shutdown signal
                     break
 
-                camera_id, frame, timestamp = item
-
-                # Check if camera has an output queue
-                if camera_id not in self.output_queues:
-                    logger.warning(f"No output queue for camera {camera_id}, skipping frame")
-                    continue
+                camera_id, frame, timestamp, camera_name, rtsp_url = item
 
                 # Check if there are newer frames from the same camera in the queue
                 # This helps prevent processing stale frames when the queue backs up
                 queue_items = []
-                newest_item_for_camera = (camera_id, frame, timestamp)
+                newest_item_for_camera = (camera_id, frame, timestamp, camera_name, rtsp_url)
 
                 try:
                     # Peek at remaining items in queue without blocking
@@ -360,40 +364,21 @@ class DetectionService(threading.Thread):
                         logger.warning("Could not restore item to queue")
 
                 # Use the newest frame for this camera
-                camera_id, frame, timestamp = newest_item_for_camera
+                camera_id, frame, timestamp, camera_name, rtsp_url = newest_item_for_camera
 
                 # Run detection
                 try:
                     detections, person_count = self.detector.detect_persons(frame)
 
-                    # Put result in camera's output queue
-                    result = {
-                        'detections': detections,
-                        'person_count': person_count,
-                        'timestamp': timestamp,
-                        'success': True
-                    }
-
-                    # Try to put result, don't block if queue is full
-                    try:
-                        self.output_queues[camera_id].put_nowait(result)
-                    except queue.Full:
-                        logger.warning(f"Output queue full for camera {camera_id}, dropping result")
+                    # Save detections directly if found
+                    if detections:
+                        self._save_detections_to_storage(
+                            frame, detections, camera_id, camera_name, rtsp_url, timestamp
+                        )
+                        logger.info(f"[{camera_name}] Detected {len(detections)} person(s) - saved to storage")
 
                 except Exception as e:
                     logger.error(f"Detection error for camera {camera_id}: {e}")
-                    # Send error result
-                    try:
-                        error_result = {
-                            'detections': [],
-                            'person_count': 0,
-                            'timestamp': timestamp,
-                            'success': False,
-                            'error': str(e)
-                        }
-                        self.output_queues[camera_id].put_nowait(error_result)
-                    except queue.Full:
-                        pass
 
             except Exception as e:
                 logger.error(f"DetectionService loop error: {e}")
@@ -401,13 +386,15 @@ class DetectionService(threading.Thread):
         logger.info("DetectionService thread stopped")
         self.is_running = False
 
-    def submit_frame(self, camera_id: int, frame: np.ndarray, timestamp: datetime = None) -> bool:
+    def submit_frame(self, camera_id: int, frame: np.ndarray, camera_name: str, rtsp_url: str, timestamp: datetime = None) -> bool:
         """
         Submit a frame for detection processing
 
         Args:
             camera_id: ID of the camera
             frame: OpenCV frame to process
+            camera_name: Name of the camera
+            rtsp_url: RTSP URL of the camera
             timestamp: Timestamp of the frame (optional)
 
         Returns:
@@ -421,111 +408,104 @@ class DetectionService(threading.Thread):
             timestamp = datetime.now()
 
         try:
-            self.input_queue.put_nowait((camera_id, frame, timestamp))
+            self.input_queue.put_nowait((camera_id, frame, timestamp, camera_name, rtsp_url))
             return True
         except queue.Full:
             logger.debug(f"Input queue full, dropping frame from camera {camera_id}")
             return False
 
-    def get_result(self, camera_id: int, timeout: float = 0.05) -> Optional[Dict]:
-        """
-        Get detection result for a camera
+    def _save_detections_to_storage(self, frame, detections, camera_id: int, camera_name: str, rtsp_url: str, timestamp: datetime):
+        """Save detection data to database and images to disk with time-based throttling"""
+        if not detections:
+            return
 
-        Args:
-            camera_id: ID of the camera
-            timeout: How long to wait for result
+        # Time-based throttling check per camera
+        if DETECTION_STORAGE_THROTTLING_ENABLED:
+            current_time = time.time()
+            last_storage_time = self.camera_last_storage_time.get(camera_id, 0)
+            time_since_last_storage = current_time - last_storage_time
 
-        Returns:
-            Detection result dict or None if no result available
-        """
-        if camera_id not in self.output_queues:
-            return None
+            if time_since_last_storage < DETECTION_STORAGE_INTERVAL_SECONDS:
+                logger.debug(f"[{camera_name}] Storage throttled - {time_since_last_storage:.1f}s since last save (need {DETECTION_STORAGE_INTERVAL_SECONDS}s)")
+                return  # Skip storage, not enough time has passed
+
+            # Update last storage time
+            self.camera_last_storage_time[camera_id] = current_time
+            logger.info(f"[{camera_name}] Storage interval reached ({DETECTION_STORAGE_INTERVAL_SECONDS}s) - saving detection data")
 
         try:
-            return self.output_queues[camera_id].get(timeout=timeout)
-        except queue.Empty:
-            return None
+            # Initialize database if enabled
+            if DATABASE_ENABLED and hasattr(db_manager, 'initialize') and not db_manager._initialized:
+                db_manager.initialize()
 
-    def register_camera(self, camera_id: int, settings: Dict = None):
-        """
-        Register a camera with the detection service
-
-        Args:
-            camera_id: ID of the camera
-            settings: Optional detection settings for this camera
-        """
-        if camera_id not in self.output_queues:
-            self.output_queues[camera_id] = queue.Queue(maxsize=10)
-            self.camera_settings[camera_id] = settings or {}
-            logger.info(f"Camera {camera_id} registered with DetectionService (using shared YOLO model)")
-        else:
-            # Camera already registered, silently clear any stale results
-            try:
-                while not self.output_queues[camera_id].empty():
-                    self.output_queues[camera_id].get_nowait()
-                # No logging for already registered cameras to reduce noise
-            except:
-                pass
-
-    def unregister_camera(self, camera_id: int):
-        """
-        Unregister a camera from the detection service
-
-        Args:
-            camera_id: ID of the camera
-        """
-        if camera_id in self.output_queues:
-            # Clear any pending results
-            try:
-                while not self.output_queues[camera_id].empty():
-                    self.output_queues[camera_id].get_nowait()
-            except:
-                pass
-
-            # Clear any pending frames in input queue for this camera
-            cleared_count = 0
-            temp_items = []
-            try:
-                while not self.input_queue.empty():
-                    item = self.input_queue.get_nowait()
-                    if item and len(item) >= 1 and item[0] == camera_id:
-                        cleared_count += 1  # Skip frames for this camera
-                    else:
-                        temp_items.append(item)  # Keep frames for other cameras
-            except queue.Empty:
-                pass
-
-            # Restore frames for other cameras
-            for item in temp_items:
+            # Save detection image with annotations (if enabled)
+            image_path = None
+            if DETECTION_IMAGE_STORAGE_ENABLED:
                 try:
-                    self.input_queue.put_nowait(item)
-                except queue.Full:
-                    pass
+                    image_path = image_storage.save_full_frame_image(
+                        frame=frame,
+                        camera_id=camera_id,
+                        camera_name=camera_name,
+                        timestamp=timestamp,
+                        detections=detections
+                    )
+                    if image_path:
+                        logger.debug(f"[{camera_name}] Saved detection image: {image_path}")
+                except Exception as e:
+                    logger.error(f"[{camera_name}] Error saving detection image: {e}")
 
-            if cleared_count > 0:
-                logger.info(f"Cleared {cleared_count} pending detection frames for camera {camera_id}")
+            # Process each detection
+            for detection in detections:
+                try:
+                    # Update detection object with image path
+                    detection.image_path = image_path
 
-            del self.output_queues[camera_id]
+                    # Save to database (if enabled)
+                    if DATABASE_ENABLED:
+                        try:
+                            detection_data = detection.to_database_dict(
+                                camera_id=camera_id
+                            )
+                            detection_data['rtsp_url'] = rtsp_url
+                            detection_data['camera_name'] = camera_name
 
-        if camera_id in self.camera_settings:
-            del self.camera_settings[camera_id]
+                            db_record = db_manager.save_detection(
+                                camera_id=camera_id,
+                                detection_data=detection_data
+                            )
 
-        logger.info(f"Unregistered camera {camera_id} from DetectionService")
+                            if db_record:
+                                detection.person_id = db_record.person_id
+                                logger.debug(f"[{camera_name}] Saved detection to database: {db_record.person_id}")
+                        except Exception as e:
+                            logger.error(f"[{camera_name}] Error saving detection to database: {e}")
 
-    def update_camera_settings(self, camera_id: int, settings: Dict):
-        """Update detection settings for a camera"""
-        if camera_id in self.camera_settings:
-            self.camera_settings[camera_id].update(settings)
-            logger.info(f"Updated settings for camera {camera_id}: {settings}")
+                except Exception as e:
+                    logger.error(f"[{camera_name}] Error processing individual detection: {e}")
+
+            logger.info(f"[{camera_name}] Successfully processed {len(detections)} detection(s) for storage")
+
+        except Exception as e:
+            logger.error(f"[{camera_name}] Error in detection storage process: {e}")
+            import traceback
+            logger.error(f"[{camera_name}] Storage error traceback: {traceback.format_exc()}")
+
+    # Output queue methods removed - DetectionService now handles storage directly
+
+    def cleanup_camera_state(self, camera_id: int):
+        """Clean up storage throttling state for removed camera"""
+        if camera_id in self.camera_last_storage_time:
+            del self.camera_last_storage_time[camera_id]
+            logger.info(f"Cleaned storage throttling state for removed camera {camera_id}")
+        else:
+            logger.debug(f"No storage state to clean for camera {camera_id}")
 
     def get_stats(self) -> Dict:
         """Get detection service statistics"""
         stats = {
             'is_running': self.is_running,
             'model_initialized': self.detector is not None and self.detector.is_initialized,
-            'input_queue_size': self.input_queue.qsize(),
-            'registered_cameras': list(self.output_queues.keys()),
-            'camera_count': len(self.output_queues)
+            'input_queue_size': self.input_queue.qsize()
         }
 
         return stats

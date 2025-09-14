@@ -13,14 +13,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple, Any, List
 from config import *
-from person_detector import DetectionResult, get_detection_service
-
-# Import database and image storage only if enabled
-if DATABASE_ENABLED:
-    from database import db_manager
-    
-if DETECTION_IMAGE_STORAGE_ENABLED:
-    from detection_storage import image_storage
+from person_detector import get_detection_service
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -71,18 +64,10 @@ class CameraWorker(threading.Thread):
         # Person detection tracking
         self.accepting_detection_frames = PERSON_DETECTION_ENABLED
         self.frame_count_for_detection = 0
-        self.total_persons_detected = 0
-        self.last_detection_count = 0
-        self.last_detection_time = None
-        # Storage throttling tracking
-        self.last_storage_time = 0  # Timestamp of last storage save
 
         # OpenCV VideoCapture object for proper cleanup
         self._video_capture = None
         self._capture_lock = threading.Lock()
-
-        # Track registration with detection service to avoid repeated registration
-        self.is_registered_with_detection = False
 
         self.daemon = True
         logger.info(f"[{self.name}] Camera worker initialized with detection {'enabled' if self.accepting_detection_frames else 'disabled'}")
@@ -119,16 +104,8 @@ class CameraWorker(threading.Thread):
             'last_error': self._last_error
         }
         
-        # Add detection statistics if detection is enabled
-        if self.accepting_detection_frames:
-            stats.update({
-                'accepting_detection_frames': True,
-                'total_persons_detected': self.total_persons_detected,
-                'last_detection_count': self.last_detection_count,
-                'last_detection_time': self.last_detection_time
-            })
-        else:
-            stats['accepting_detection_frames'] = False
+        # Add detection status
+        stats['accepting_detection_frames'] = self.accepting_detection_frames
             
         return stats
 
@@ -228,10 +205,6 @@ class CameraWorker(threading.Thread):
                 self.frames_captured += 1
                 self._last_frame_time = datetime.now()
                 
-                # Simple queue-based detection submission
-                detections = []
-                detection_count = 0
-
                 # Submit frame to detection service if enabled
                 if self.accepting_detection_frames:
                     self.frame_count_for_detection += 1
@@ -241,31 +214,14 @@ class CameraWorker(threading.Thread):
                         detection_service = get_detection_service()
 
                         if detection_service:
-                            # Register camera with detection service only once
-                            if not self.is_registered_with_detection:
-                                detection_service.register_camera(self.camera_id)
-                                self.is_registered_with_detection = True
-
-                            # Try to submit frame to detection service
-                            submitted = detection_service.submit_frame(self.camera_id, frame, self._last_frame_time)
+                            # Try to submit frame to detection service with camera context
+                            submitted = detection_service.submit_frame(
+                                self.camera_id, frame, self.name, self.rtsp_url, self._last_frame_time
+                            )
 
                             if submitted:
                                 self.frame_count_for_detection = 0
                                 logger.debug(f"[{self.name}] Frame submitted to detection service")
-
-                                # Try to get detection result (non-blocking)
-                                result = detection_service.get_result(self.camera_id, timeout=0.01)
-                                if result and result['success']:
-                                    detections = result['detections']
-                                    if detections:
-                                        # Update detection tracking
-                                        self.last_detection_count = len(detections)
-                                        self.total_persons_detected += len(detections)
-                                        self.last_detection_time = datetime.now()
-
-                                        # Save detections to storage
-                                        self._save_detections_to_storage(frame, detections)
-                                        logger.info(f"[{self.name}] Detected {len(detections)} person(s)")
                             else:
                                 # Service queue is full - keep counting frames until next interval
                                 logger.debug(f"[{self.name}] Detection service queue full, will retry next interval")
@@ -286,9 +242,7 @@ class CameraWorker(threading.Thread):
                     # Store frame data for camera feed display
                     display_frame_data = {
                         'frame': frame.copy(),
-                        'timestamp': self._last_frame_time,
-                        'detections': [],  # Detection results come from background worker
-                        'detection_count': 0  # Will be updated by background worker
+                        'timestamp': self._last_frame_time
                     }
 
                     # Add latest frame to display queue (should never block with size=1)
@@ -332,106 +286,26 @@ class CameraWorker(threading.Thread):
             self.set_status(CameraStatus.OFFLINE, "Connection lost")
             time.sleep(RTSP_RECONNECT_DELAY)
 
-    def get_latest_frame(self) -> Tuple[Optional[Any], Optional[datetime], Optional[List], int]:
-        """Get the most recent frame from the display queue (always latest frame)"""
+    def get_latest_frame(self) -> Tuple[Optional[Any], Optional[datetime]]:
+        """Get the most recent frame from the display queue"""
         try:
             # Get from display queue for guaranteed latest frame
             frame_data = self.display_queue.get_nowait()
             if isinstance(frame_data, dict):
-                # New format with detection data
-                return (frame_data['frame'], frame_data['timestamp'],
-                       frame_data.get('detections', []), frame_data.get('detection_count', 0))
+                return frame_data['frame'], frame_data['timestamp']
             else:
                 # Backward compatibility for old format (frame, timestamp tuple)
-                frame, timestamp = frame_data
-                return frame, timestamp, [], 0
+                return frame_data
         except queue.Empty:
             # No frame available in display queue
-            return None, None, [], 0
+            return None, None
     
-    def _save_detections_to_storage(self, frame, detections):
-        """Save detection data to database and images to disk with time-based throttling"""
-        if not detections:
-            return
-        
-        # Time-based throttling check
-        if DETECTION_STORAGE_THROTTLING_ENABLED:
-            current_time = time.time()
-            time_since_last_storage = current_time - self.last_storage_time
-            
-            if time_since_last_storage < DETECTION_STORAGE_INTERVAL_SECONDS:
-                logger.debug(f"[{self.name}] Storage throttled - {time_since_last_storage:.1f}s since last save (need {DETECTION_STORAGE_INTERVAL_SECONDS}s)")
-                return  # Skip storage, not enough time has passed
-            
-            # Update last storage time
-            self.last_storage_time = current_time
-            logger.info(f"[{self.name}] Storage interval reached ({DETECTION_STORAGE_INTERVAL_SECONDS}s) - saving detection data")
-        
-        try:
-            # Initialize database if enabled
-            if DATABASE_ENABLED and hasattr(db_manager, 'initialize') and not db_manager._initialized:
-                db_manager.initialize()
-            
-            # Save detection image with annotations (if enabled)
-            image_path = None
-            if DETECTION_IMAGE_STORAGE_ENABLED:
-                try:
-                    image_path = image_storage.save_full_frame_image(
-                        frame=frame,
-                        camera_id=self.camera_id,
-                        camera_name=self.name,
-                        timestamp=self._last_frame_time,
-                        detections=detections
-                    )
-                    if image_path:
-                        logger.debug(f"[{self.name}] Saved detection image: {image_path}")
-                except Exception as e:
-                    logger.error(f"[{self.name}] Error saving detection image: {e}")
-            
-            # Process each detection
-            for detection in detections:
-                try:
-                    # Update detection object with image path
-                    detection.image_path = image_path
-                    
-                    # Save to database (if enabled)
-                    if DATABASE_ENABLED:
-                        try:
-                            detection_data = detection.to_database_dict(
-                                camera_id=self.camera_id
-                            )
-                            detection_data['rtsp_url'] = self.rtsp_url
-                            detection_data['camera_name'] = self.name
-                            
-                            db_record = db_manager.save_detection(
-                                camera_id=self.camera_id,
-                                detection_data=detection_data
-                            )
-                            
-                            if db_record:
-                                detection.person_id = db_record.person_id
-                                logger.debug(f"[{self.name}] Saved detection to database: {db_record.person_id}")
-                        except Exception as e:
-                            logger.error(f"[{self.name}] Error saving detection to database: {e}")
-                
-                except Exception as e:
-                    logger.error(f"[{self.name}] Error processing individual detection: {e}")
-            
-            logger.info(f"[{self.name}] Successfully processed {len(detections)} detection(s) for storage")
-            
-        except Exception as e:
-            logger.error(f"[{self.name}] Error in detection storage process: {e}")
-            import traceback
-            logger.error(f"[{self.name}] Storage error traceback: {traceback.format_exc()}")
+    # Detection storage moved to DetectionService for simplified architecture
 
     def stop(self):
         """Stop the camera worker thread with proper resource cleanup"""
         logger.info(f"[{self.name}] Stopping camera worker...")
         self._stop_event.set()
-        self.detection_pending = False  # Clear pending detection flag
-
-        # Note: Detection service unregistration is handled by remove_camera_simple() in the manager
-        # This avoids double unregistration
 
         # Force release VideoCapture if still active
         with self._capture_lock:
@@ -455,8 +329,6 @@ class CameraWorker(threading.Thread):
                 self.display_queue.get_nowait()
             except queue.Empty:
                 break
-        
-        # Note: Detection service unregistration handled above
         
         # Wait for thread to finish
         if self.is_alive():
@@ -510,7 +382,7 @@ class EnhancedCameraManager:
                 return False
 
     def remove_camera_simple(self, camera_id: int) -> bool:
-        """Simple camera removal - just the essentials (no YOLO cleanup needed)"""
+        """Simple camera removal - just the essentials"""
         with self._manager_lock:
             if camera_id not in self.workers:
                 logger.warning(f"Camera {camera_id} not found for removal")
@@ -519,20 +391,11 @@ class EnhancedCameraManager:
             try:
                 worker = self.workers[camera_id]
 
-                # 1. Clean up detection service registration first
-                if PERSON_DETECTION_ENABLED:
-                    try:
-                        detection_service = get_detection_service()
-                        detection_service.unregister_camera(camera_id)
-                        logger.info(f"Unregistered camera {camera_id} from detection service")
-                    except Exception as e:
-                        logger.warning(f"Error unregistering camera {camera_id} from detection service: {e}")
-
-                # 2. Stop worker thread and release VideoCapture
+                # Stop worker thread and release VideoCapture
                 logger.info(f"Stopping camera worker for {camera_id}")
                 worker.stop()  # This handles VideoCapture.release() - the critical part
 
-                # 3. Wait reasonable time for cleanup (single timeout, no progressive complexity)
+                # Wait reasonable time for cleanup (single timeout, no progressive complexity)
                 if worker.is_alive():
                     logger.info(f"Waiting up to 3 seconds for camera {camera_id} thread to stop")
                     worker.join(timeout=3)  # Single 3-second timeout
@@ -540,10 +403,19 @@ class EnhancedCameraManager:
                     if worker.is_alive():
                         logger.warning(f"Camera {camera_id} thread did not stop within 3 seconds, continuing anyway")
 
-                # 4. Remove from tracking (even if thread didn't die)
+                # Clean up DetectionService state for removed camera
+                if PERSON_DETECTION_ENABLED:
+                    try:
+                        detection_service = get_detection_service()
+                        if detection_service:
+                            detection_service.cleanup_camera_state(camera_id)
+                    except Exception as e:
+                        logger.warning(f"Error cleaning up detection service state for camera {camera_id}: {e}")
+
+                # Remove from tracking (even if thread didn't die)
                 del self.workers[camera_id]
 
-                logger.info(f"Camera {camera_id} removed using simple cleanup")
+                logger.info(f"Camera {camera_id} removed using simplified cleanup")
                 return True
 
             except Exception as e:
@@ -562,7 +434,7 @@ class EnhancedCameraManager:
         if camera_id not in self.workers:
             return None
 
-        frame, timestamp, detections, detection_count = self.workers[camera_id].get_latest_frame()
+        frame, timestamp = self.workers[camera_id].get_latest_frame()
         if frame is None:
             return None
 
@@ -617,7 +489,7 @@ class EnhancedCameraManager:
 
         while True:
             try:
-                frame, timestamp, detections, detection_count = worker.get_latest_frame()
+                frame, timestamp = worker.get_latest_frame()
                 if frame is not None:
                     # Use optimized encoding settings
                     success, buffer = cv2.imencode('.jpg', frame, encode_params)
