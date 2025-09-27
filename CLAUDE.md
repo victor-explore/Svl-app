@@ -12,6 +12,7 @@ This is an enhanced CCTV surveillance system built with Flask and Python. The ap
 
 ## Development Commands
 
+
 ### Environment Setup
 ```bash
 cd Svl-app
