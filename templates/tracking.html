@@ -23,15 +23,12 @@
                     </label>
                     <div class="flex gap-2">
                         <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full max-w-md" />
-                        <button onclick="searchByDetectionId()" class="btn btn-primary">
+                        <button onclick="searchByDetectionId()" class="btn btn-neutral">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                             </svg>
                             Search
                         </button>
-                    </div>
-                    <div class="label">
-                        <span class="label-text-alt">Search for similar persons using AI-powered Re-identification</span>
                     </div>
                 </div>
             </div>
@@ -64,16 +61,102 @@
                 <div id="timeline-container"></div>
             </div>
 
-            <!-- Empty State (shown when no search performed) -->
-            <div id="empty-state" class="text-center py-12">
-                <div class="flex flex-col items-center gap-4">
-                    <svg class="w-16 h-16 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <div class="text-base-content/60">
-                        <h3 class="text-lg font-semibold mb-2">Person Re-Identification</h3>
-                        <p>Enter a Detection ID above to search for similar persons across cameras</p>
-                        <p class="text-sm mt-2">The system will find matching persons from the same day using AI-powered analysis</p>
+            <!-- Enhanced Empty State (shown when no search performed) -->
+            <div id="empty-state" class="py-8">
+                <div class="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-xl p-8 border border-primary/20">
+                    <div class="text-center mb-8">
+                        <div class="flex items-center justify-center gap-3 mb-4">
+                            <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            <h3 class="text-2xl font-bold text-primary">PERSON RE-IDENTIFICATION</h3>
+                        </div>
+                    </div>
+
+                    <!-- Feature Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <!-- AI Detection Card -->
+                        <div class="card bg-base-100 shadow-lg border border-primary/20">
+                            <div class="card-body p-6 text-center">
+                                <div class="flex justify-center mb-4">
+                                    <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
+                                        <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <h4 class="text-lg font-semibold text-primary mb-2">👤 AI Detection</h4>
+                                <p class="text-sm text-base-content/70 mb-3">Advanced matching algorithm</p>
+                                <div class="text-xs text-base-content/60">
+                                    Analyzes facial features and clothing patterns with high precision
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Track Movement Card -->
+                        <div class="card bg-base-100 shadow-lg border border-secondary/20">
+                            <div class="card-body p-6 text-center">
+                                <div class="flex justify-center mb-4">
+                                    <div class="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center">
+                                        <svg class="w-8 h-8 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <h4 class="text-lg font-semibold text-secondary mb-2">🔄 Track Movement</h4>
+                                <p class="text-sm text-base-content/70 mb-3">Follow the person's journey</p>
+                                <div class="text-xs text-base-content/60">
+                                    Complete movement timeline across all camera locations
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analyze Patterns Card -->
+                        <div class="card bg-base-100 shadow-lg border border-accent/20">
+                            <div class="card-body p-6 text-center">
+                                <div class="flex justify-center mb-4">
+                                    <div class="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
+                                        <svg class="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <h4 class="text-lg font-semibold text-accent mb-2">📊 Analyze Patterns</h4>
+                                <p class="text-sm text-base-content/70 mb-3">Same-day detection analytics</p>
+                                <div class="text-xs text-base-content/60">
+                                    Statistical analysis and confidence scoring
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- How It Works Section -->
+                    <div class="bg-base-100 rounded-lg p-6 border border-base-300">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h4 class="text-lg font-semibold text-info">💡 How it works:</h4>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div class="flex gap-3">
+                                <div class="badge badge-primary badge-outline font-mono">1</div>
+                                <div>Enter any Detection ID from your surveillance data</div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="badge badge-primary badge-outline font-mono">2</div>
+                                <div>AI analyzes facial features and clothing patterns</div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="badge badge-primary badge-outline font-mono">3</div>
+                                <div>System searches across all cameras for matches</div>
+                            </div>
+                            <div class="flex gap-3">
+                                <div class="badge badge-primary badge-outline font-mono">4</div>
+                                <div>View complete movement timeline with confidence scores</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -195,7 +278,6 @@ function displayTimeline(detections) {
                 ${index > 0 ? '<hr />' : ''}
                 <div class="timeline-start timeline-box">
                     <div class="text-sm font-semibold">${timestamp}</div>
-                    <div class="text-xs text-base-content/70">${detection.camera_name}</div>
                 </div>
                 <div class="timeline-middle">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
@@ -204,22 +286,18 @@ function displayTimeline(detections) {
                     </svg>
                 </div>
                 <div class="timeline-end">
-                    <div class="card bg-base-100 shadow-sm border border-base-300 max-w-md">
+                    <div class="card bg-base-100 shadow-sm border border-base-300 max-w-lg">
                         <div class="card-body p-4">
-                            <div class="flex items-center justify-between mb-2">
-                                <span class="badge ${badgeColor}">${similarity}% Match</span>
-                                ${isSource ? '<span class="badge badge-primary">Source</span>' : ''}
-                                <span class="text-xs">#${detection.id}</span>
-                            </div>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="flex gap-4">
                                 <img src="/api/detections/images/${detection.image_path}"
                                      alt="Detection ${detection.id}"
-                                     class="w-full h-32 object-cover rounded cursor-pointer"
+                                     class="w-48 h-36 object-cover rounded cursor-pointer flex-shrink-0"
                                      onclick="openImageModal('${detection.image_path}')">
-                                <div class="text-xs space-y-1">
-                                    <p><strong>Camera:</strong> ${detection.camera_name}</p>
-                                    <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
-                                    ${detection.movement ? `<p class="text-primary">${detection.movement}</p>` : ''}
+                                <div class="text-sm space-y-2 flex-1">
+                                    <p>Camera: ${detection.camera_name}</p>
+                                    <p>Detection ID: ${detection.id}</p>
+                                    <p>Match confidence: ${similarity}%</p>
+                                    <p>Detection confidence: ${(detection.confidence * 100).toFixed(1)}%</p>
                                 </div>
                             </div>
                         </div>
