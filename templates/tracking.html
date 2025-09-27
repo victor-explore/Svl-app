@@ -19,13 +19,53 @@
             <div class="mb-6">
                 <div class="form-control w-full max-w-md">
                     <label class="label">
-                        <span class="label-text">Search by Object ID</span>
+                        <span class="label-text">Search by Detection ID</span>
                     </label>
-                    <input type="text" placeholder="Enter Object ID to search..." class="input input-bordered w-full max-w-md" />
+                    <div class="flex gap-2">
+                        <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full max-w-md" />
+                        <button onclick="searchByDetectionId()" class="btn btn-primary">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                            </svg>
+                            Search
+                        </button>
+                    </div>
+                    <div class="label">
+                        <span class="label-text-alt">Search for similar persons using AI-powered Re-identification</span>
+                    </div>
                 </div>
             </div>
-            
-            <ul class="timeline timeline-vertical">
+
+            <!-- Loading State -->
+            <div id="loading-state" class="hidden">
+                <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
+                    <span class="loading loading-spinner loading-md"></span>
+                    <span>Searching for similar detections...</span>
+                </div>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="hidden">
+                <div class="alert alert-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span id="error-message">An error occurred while searching.</span>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div id="search-results" class="hidden">
+                <!-- Source Detection Card -->
+                <div id="source-detection-card" class="mb-6"></div>
+
+                <!-- Similar Detections Timeline -->
+                <h3 class="text-lg font-semibold mb-4">Person Movement Timeline</h3>
+                <div id="timeline-container"></div>
+            </div>
+
+            <!-- Default Timeline (shown when no search) -->
+            <ul class="timeline timeline-vertical" id="default-timeline">
                 <li>
                     <div class="timeline-start">2024-01-15 09:30:00</div>
                     <div class="timeline-middle">
@@ -129,5 +169,237 @@
     </div>
 
 </div>
+
+<script>
+// Person Re-ID Search Functionality
+async function searchByDetectionId() {
+    const detectionId = document.getElementById('detection-id-search').value.trim();
+
+    if (!detectionId) {
+        showError('Please enter a Detection ID');
+        return;
+    }
+
+    // Hide previous states
+    hideAllStates();
+
+    // Show loading state
+    document.getElementById('loading-state').classList.remove('hidden');
+
+    try {
+        // Make API call to search for similar detections
+        const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=0.7&top_k=50`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to search for similar detections');
+        }
+
+        if (data.success) {
+            displaySearchResults(data);
+        } else {
+            throw new Error(data.error || 'Search failed');
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+        showError(error.message);
+    } finally {
+        document.getElementById('loading-state').classList.add('hidden');
+    }
+}
+
+function displaySearchResults(data) {
+    hideAllStates();
+
+    // Show search results container
+    document.getElementById('search-results').classList.remove('hidden');
+
+    // Display source detection
+    displaySourceDetection(data.source_detection);
+
+    // Display timeline of similar detections
+    displayTimeline(data.person_path || data.similar_detections);
+
+    // Display search statistics
+    if (data.search_params) {
+        console.log('Search Statistics:', data.search_params);
+    }
+}
+
+function displaySourceDetection(detection) {
+    const sourceCard = document.getElementById('source-detection-card');
+
+    const timestamp = new Date(detection.timestamp).toLocaleString();
+
+    sourceCard.innerHTML = `
+        <div class="card bg-primary/10 border-primary">
+            <div class="card-body">
+                <h3 class="card-title">Source Detection #${detection.id}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <img src="/api/detections/images/${detection.image_path}"
+                             alt="Detection ${detection.id}"
+                             class="w-full rounded-lg shadow-lg cursor-pointer"
+                             onclick="openImageModal('${detection.image_path}')">
+                    </div>
+                    <div class="space-y-2">
+                        <p><strong>Detection ID:</strong> ${detection.id}</p>
+                        <p><strong>Person ID:</strong> ${detection.person_id || 'N/A'}</p>
+                        <p><strong>Camera:</strong> ${detection.camera_name}</p>
+                        <p><strong>Time:</strong> ${timestamp}</p>
+                        <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function displayTimeline(detections) {
+    const timelineContainer = document.getElementById('timeline-container');
+
+    if (!detections || detections.length === 0) {
+        timelineContainer.innerHTML = '<p class="text-base-content/70">No similar detections found.</p>';
+        return;
+    }
+
+    // Create timeline HTML
+    let timelineHTML = '<ul class="timeline timeline-vertical">';
+
+    detections.forEach((detection, index) => {
+        const timestamp = new Date(detection.timestamp).toLocaleString();
+        const similarity = (detection.similarity * 100).toFixed(1);
+
+        // Color code based on similarity
+        let badgeColor = 'badge-success'; // >90%
+        if (detection.similarity < 0.8) badgeColor = 'badge-warning'; // 70-80%
+        else if (detection.similarity < 0.9) badgeColor = 'badge-info'; // 80-90%
+
+        // Check if this is the source detection
+        const isSource = detection.is_source;
+
+        timelineHTML += `
+            <li>
+                ${index > 0 ? '<hr />' : ''}
+                <div class="timeline-start timeline-box">
+                    <div class="text-sm font-semibold">${timestamp}</div>
+                    <div class="text-xs text-base-content/70">${detection.camera_name}</div>
+                </div>
+                <div class="timeline-middle">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                         class="h-5 w-5 ${isSource ? 'text-primary' : 'text-success'}">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="timeline-end">
+                    <div class="card bg-base-100 shadow-sm border border-base-300 max-w-md">
+                        <div class="card-body p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="badge ${badgeColor}">${similarity}% Match</span>
+                                ${isSource ? '<span class="badge badge-primary">Source</span>' : ''}
+                                <span class="text-xs">#${detection.id}</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <img src="/api/detections/images/${detection.image_path}"
+                                     alt="Detection ${detection.id}"
+                                     class="w-full h-32 object-cover rounded cursor-pointer"
+                                     onclick="openImageModal('${detection.image_path}')">
+                                <div class="text-xs space-y-1">
+                                    <p><strong>Camera:</strong> ${detection.camera_name}</p>
+                                    <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
+                                    ${detection.movement ? `<p class="text-primary">${detection.movement}</p>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ${index < detections.length - 1 ? '<hr />' : ''}
+            </li>
+        `;
+    });
+
+    timelineHTML += '</ul>';
+
+    // Add summary statistics
+    const uniqueCameras = [...new Set(detections.map(d => d.camera_name))];
+    const timeSpan = getTimeSpan(detections);
+
+    timelineHTML = `
+        <div class="stats shadow mb-4">
+            <div class="stat">
+                <div class="stat-title">Total Matches</div>
+                <div class="stat-value text-primary">${detections.length}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Cameras Visited</div>
+                <div class="stat-value text-secondary">${uniqueCameras.length}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Time Span</div>
+                <div class="stat-value text-accent text-2xl">${timeSpan}</div>
+            </div>
+        </div>
+    ` + timelineHTML;
+
+    timelineContainer.innerHTML = timelineHTML;
+}
+
+function getTimeSpan(detections) {
+    if (detections.length < 2) return 'N/A';
+
+    const times = detections.map(d => new Date(d.timestamp).getTime());
+    const minTime = Math.min(...times);
+    const maxTime = Math.max(...times);
+    const diffMs = maxTime - minTime;
+
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
+}
+
+function openImageModal(imagePath) {
+    // Create modal for full-size image viewing
+    const modal = document.createElement('div');
+    modal.className = 'modal modal-open';
+    modal.innerHTML = `
+        <div class="modal-box max-w-4xl">
+            <h3 class="font-bold text-lg mb-4">Detection Image</h3>
+            <img src="/api/detections/images/${imagePath}" alt="Detection" class="w-full rounded-lg">
+            <div class="modal-action">
+                <button class="btn" onclick="this.closest('.modal').remove()">Close</button>
+            </div>
+        </div>
+        <div class="modal-backdrop" onclick="this.closest('.modal').remove()"></div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function showError(message) {
+    hideAllStates();
+    const errorState = document.getElementById('error-state');
+    const errorMessage = document.getElementById('error-message');
+    errorMessage.textContent = message;
+    errorState.classList.remove('hidden');
+}
+
+function hideAllStates() {
+    document.getElementById('loading-state').classList.add('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('search-results').classList.add('hidden');
+    document.getElementById('default-timeline').classList.add('hidden');
+}
+
+// Allow Enter key to trigger search
+document.getElementById('detection-id-search').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        searchByDetectionId();
+    }
+});
+</script>
 
 {% endblock %}

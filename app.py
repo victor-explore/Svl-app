@@ -1395,6 +1395,135 @@ def get_storage_statistics():
             'error': str(e)
         }), 500
 
+@app.route('/api/detections/search-similar/<int:detection_id>', methods=['GET'])
+def search_similar_detections(detection_id):
+    """
+    Search for similar person detections using Re-ID model
+    Query params:
+    - threshold: Minimum similarity threshold (default: 0.7)
+    - top_k: Maximum number of results (default: 50)
+    """
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+
+        # Get query parameters
+        threshold = float(request.args.get('threshold', 0.7))
+        top_k = int(request.args.get('top_k', 50))
+
+        # Validate threshold
+        if not 0.0 <= threshold <= 1.0:
+            return jsonify({
+                'success': False,
+                'error': 'Threshold must be between 0.0 and 1.0'
+            }), 400
+
+        # Import database and Re-ID modules
+        from database import db_manager
+        from person_reid import get_reid_instance
+
+        # Get the source detection
+        session = db_manager.get_session()
+        try:
+            from database import Detection
+            source_detection = session.query(Detection).filter(Detection.id == detection_id).first()
+
+            if not source_detection:
+                return jsonify({
+                    'success': False,
+                    'error': f'Detection with ID {detection_id} not found'
+                }), 404
+
+            # Get the date of the source detection (same day only)
+            detection_date = source_detection.created_at.date()
+
+            # Get all detections from the same day
+            from datetime import datetime, time
+            start_of_day = datetime.combine(detection_date, time.min)
+            end_of_day = datetime.combine(detection_date, time.max)
+
+            # Use enriched detection history to get camera names
+            all_detections = db_manager.get_enriched_detection_history(
+                limit=1000,  # Get all detections from the day
+                start_date=start_of_day,
+                end_date=end_of_day
+            )
+
+            logger.info(f"Found {len(all_detections)} detections from {detection_date}")
+
+            # Initialize Re-ID model
+            reid_model = get_reid_instance()
+
+            if not reid_model.initialized:
+                return jsonify({
+                    'success': False,
+                    'error': 'Person Re-ID model is not available. Please install torchreid.'
+                }), 500
+
+            # Find similar detections
+            similar_detections = reid_model.find_similar_detections(
+                detection_id=detection_id,
+                all_detections=all_detections,
+                threshold=threshold,
+                top_k=top_k
+            )
+
+            # Organize into chronological path
+            person_path = reid_model.find_person_path(similar_detections)
+
+            # Prepare source detection info
+            source_info = {
+                'id': source_detection.id,
+                'person_id': source_detection.person_id,
+                'camera_id': source_detection.camera_id,
+                'camera_name': source_detection.camera.name if hasattr(source_detection, 'camera') else f'Camera {source_detection.camera_id}',
+                'timestamp': source_detection.created_at.isoformat(),
+                'image_path': source_detection.image_path,
+                'confidence': round(source_detection.confidence, 3) if source_detection.confidence else 0,
+                'bbox': [
+                    source_detection.bbox_x1,
+                    source_detection.bbox_y1,
+                    source_detection.bbox_x2,
+                    source_detection.bbox_y2
+                ]
+            }
+
+            # Return results
+            return jsonify({
+                'success': True,
+                'source_detection': source_info,
+                'similar_detections': similar_detections,
+                'person_path': person_path,
+                'search_params': {
+                    'threshold': threshold,
+                    'top_k': top_k,
+                    'search_date': detection_date.isoformat(),
+                    'total_searched': len(all_detections),
+                    'total_matches': len(similar_detections)
+                }
+            })
+
+        finally:
+            session.close()
+
+    except ValueError as e:
+        logger.error(f"Invalid parameter value: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Invalid parameter: {str(e)}'
+        }), 400
+
+    except Exception as e:
+        logger.error(f"Error searching similar detections: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     # IMPORTANT: Debug mode controlled by config to prevent app shutdown when all cameras are removed
