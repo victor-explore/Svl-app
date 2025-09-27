@@ -127,16 +127,10 @@ class SurveillanceMap {
             title: camera.name || camera.unique_id
         });
 
-        // Add popup
-        const popupContent = this.createMarkerPopup(camera);
-        marker.bindPopup(popupContent, {
-            maxWidth: 300,
-            className: 'camera-popup'
-        });
-
-        // Handle marker click
+        // Handle marker click - show modal instead of popup
         marker.on('click', () => {
             this.selectCamera(camera);
+            this.showCameraModal(camera);
         });
 
         // Add to map
@@ -144,19 +138,137 @@ class SurveillanceMap {
         this.markers.set(camera.id, marker);
     }
 
-    createMarkerPopup(camera) {
+    showCameraModal(camera) {
+        const modal = document.getElementById('cameraModal');
+        const content = document.getElementById('cameraModalContent');
+
         const statusBadge = this.getStatusBadgeHtml(camera.status);
-        return `
-            <div class="p-2">
-                <div class="font-semibold text-lg mb-2">${camera.name || camera.unique_id}</div>
-                <div class="space-y-1 text-sm">
-                    <div><strong>Status:</strong> ${statusBadge}</div>
-                    <div><strong>ID:</strong> ${camera.unique_id}</div>
-                    <div><strong>Coordinates:</strong> ${camera.latitude.toFixed(6)}, ${camera.longitude.toFixed(6)}</div>
-                    ${camera.rtsp_url ? `<div><strong>Stream:</strong> <code class="text-xs">${camera.rtsp_url}</code></div>` : ''}
+
+        content.innerHTML = `
+            <h3 class="text-2xl font-bold mb-4">${camera.name || camera.unique_id}</h3>
+
+            <!-- Video Feed -->
+            <div class="aspect-video bg-base-300 rounded-lg overflow-hidden mb-4">
+                <img src="/api/cameras/${camera.id}/stream"
+                     alt="Camera ${camera.unique_id} Stream"
+                     class="w-full h-full object-contain"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <div class="w-full h-full flex items-center justify-center text-base-content/60" style="display: none;">
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">📷</div>
+                        <div>Stream unavailable</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detections Chart -->
+            <div class="mt-4">
+                <div class="bg-base-200 rounded-lg p-4">
+                    <div style="position: relative; height: 350px; width: 100%;">
+                        <canvas id="cameraDetectionsChart_${camera.id}"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera Information -->
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between">
+                    <span class="font-medium">Status:</span>
+                    <span>${statusBadge}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">ID:</span>
+                    <span>${camera.unique_id}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="font-medium">Coordinates:</span>
+                    <span>${camera.latitude.toFixed(6)}, ${camera.longitude.toFixed(6)}</span>
                 </div>
             </div>
         `;
+
+        modal.showModal();
+
+        // Initialize chart after modal is shown
+        setTimeout(() => {
+            this.initializeCameraChart(camera);
+        }, 100);
+    }
+
+    initializeCameraChart(camera) {
+        const canvasId = `cameraDetectionsChart_${camera.id}`;
+        const canvas = document.getElementById(canvasId);
+
+        if (!canvas) {
+            console.error('Chart canvas not found:', canvasId);
+            return;
+        }
+
+        const ctx = canvas.getContext('2d');
+
+        // Create chart
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Detections',
+                    data: [],
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f620',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Hour'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Detections'
+                        },
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+
+        // Fetch and load data
+        this.loadCameraChartData(camera.id, chart);
+    }
+
+    loadCameraChartData(cameraId, chart) {
+        fetch(`/api/analytics/camera-${cameraId}/hourly-detections?hours_back=24`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && result.data) {
+                    chart.data.labels = result.data.hours;
+                    chart.data.datasets[0].data = result.data.counts;
+                    chart.update();
+                } else {
+                    console.error('Error loading camera chart data:', result.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading camera chart data:', error);
+            });
     }
 
     getCameraStatusColor(status) {
@@ -221,11 +333,7 @@ style.textContent = `
         50% { transform: scale(1.2); opacity: 0.1; }
         100% { transform: scale(1); opacity: 0.3; }
     }
-    
-    .camera-popup .leaflet-popup-content {
-        margin: 0;
-    }
-    
+
     .camera-marker {
         background: none !important;
         border: none !important;

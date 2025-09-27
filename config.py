@@ -19,7 +19,7 @@ JPEG_QUALITY = 70                          # JPEG compression quality for web st
 
 # Performance Settings
 MAX_CAMERAS = 20                           # Maximum number of cameras supported
-THREAD_CLEANUP_TIMEOUT = 5                 # Timeout for thread cleanup in seconds
+THREAD_CLEANUP_TIMEOUT = 5                 # Timeout for thread cleanup in seconds  
 STATUS_UPDATE_INTERVAL = 2                 # Interval for status updates in seconds
 
 # Camera Deletion Settings - Senior Developer Optimistic Approach

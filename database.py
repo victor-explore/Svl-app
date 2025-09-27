@@ -566,6 +566,63 @@ class DatabaseManager:
         finally:
             session.close()
 
+    def get_camera_hourly_detection_stats(self, camera_id: int, hours_back: int = 24) -> Dict[str, Any]:
+        """Get hourly detection statistics for a specific camera"""
+        session = self.get_session()
+        try:
+            # Calculate time range
+            from datetime import datetime, timedelta
+            range_start = get_ist_now() - timedelta(hours=hours_back)
+            range_end = get_ist_now()
+
+            # Query detections for specific camera only
+            detections = session.query(Detection).filter(
+                Detection.camera_id == camera_id,
+                Detection.created_at >= range_start,
+                Detection.created_at <= range_end
+            ).all()
+
+            # Group by hour and count
+            hourly_counts = {}
+            hours = []
+
+            # Create hourly buckets (similar to working analytics method)
+            current_hour = range_start.replace(minute=0, second=0, microsecond=0)
+            while current_hour <= range_end:
+                hour_str = current_hour.strftime('%Y-%m-%d %H:00')  # Include date info
+                hours.append(hour_str)
+                hourly_counts[hour_str] = 0
+                current_hour += timedelta(hours=1)
+
+            # Count detections per hour (round down to hour like working method)
+            for detection in detections:
+                hour_key = detection.created_at.replace(minute=0, second=0, microsecond=0)
+                hour_str = hour_key.strftime('%Y-%m-%d %H:00')  # Match bucket format
+                if hour_str in hourly_counts:
+                    hourly_counts[hour_str] += 1
+
+            # Convert to list format for Chart.js display
+            counts = [hourly_counts[hour] for hour in hours]
+
+            # Convert full datetime strings to hour-only for chart display
+            display_hours = []
+            for hour_str in hours:
+                dt = datetime.strptime(hour_str, '%Y-%m-%d %H:00')
+                display_hours.append(dt.strftime('%H:00'))  # Just "15:00" for display
+
+            return {
+                'hours': display_hours,  # Hour-only strings for chart
+                'counts': counts,
+                'total_detections': sum(counts),
+                'camera_id': camera_id
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting camera hourly detection stats: {e}")
+            return {'hours': [], 'counts': [], 'total_detections': 0, 'camera_id': camera_id}
+        finally:
+            session.close()
+
     def cleanup_old_detections(self, days_to_keep: int = 30):
         """Clean up old detection records (optional maintenance)"""
         session = self.get_session()

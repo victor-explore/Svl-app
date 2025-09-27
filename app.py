@@ -1208,6 +1208,39 @@ def get_hourly_detections():
             'error': str(e)
         }), 500
 
+@app.route('/api/analytics/camera-<int:camera_id>/hourly-detections', methods=['GET'])
+def get_camera_hourly_detections(camera_id):
+    """Get hourly detection statistics for a specific camera"""
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database functionality is not enabled'
+            }), 400
+
+        from database import db_manager
+
+        hours_back = request.args.get('hours_back', default=24, type=int)
+        hours_back = max(1, min(hours_back, 168))  # 1 hour to 1 week
+
+        # Get camera-specific statistics
+        stats = db_manager.get_camera_hourly_detection_stats(camera_id, hours_back=hours_back)
+
+        return jsonify({
+            'success': True,
+            'data': stats,
+            'camera_id': camera_id,
+            'hours_back': hours_back
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting camera hourly detection statistics: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/detections/export', methods=['GET'])
 def export_detections():
     """Export detection data in CSV or JSON format"""

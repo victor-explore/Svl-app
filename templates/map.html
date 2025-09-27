@@ -45,9 +45,27 @@
     </div>
 </dialog>
 
+<!-- Camera Details Modal -->
+<dialog id="cameraModal" class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <div id="cameraModalContent">
+            <!-- Dynamic content will be inserted here -->
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
 <!-- Add CSS and JavaScript for Leaflet -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Chart.js for detection analytics -->
+<script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
 
 <style>
 /* Ensure map container has explicit height for Leaflet */
