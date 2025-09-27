@@ -10,162 +10,79 @@
         <p class="text-base-content/70">Track events and activities over time</p>
     </div>
 
-    <!-- Timeline Section -->
-    <div class="card bg-base-100 shadow-sm border border-base-300">
+    <!-- Search by Detection ID Section -->
+    <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
         <div class="card-body">
-            <h2 class="card-title text-lg font-semibold mb-4">Timeline</h2>
-            
-            <!-- Search/Filter Input -->
-            <div class="mb-6">
-                <div class="form-control w-full max-w-md">
-                    <label class="label">
-                        <span class="label-text">Search by Detection ID</span>
-                    </label>
-                    <div class="flex gap-2">
-                        <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full max-w-md" />
-                        <button onclick="searchByDetectionId()" class="btn btn-neutral">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                            </svg>
-                            Search
-                        </button>
-                    </div>
-                </div>
+            <div class="flex items-center mb-4">
+                <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
+                </svg>
+                <h2 class="card-title text-lg font-semibold">Search by Detection ID</h2>
             </div>
 
-            <!-- Loading State -->
-            <div id="loading-state" class="hidden">
-                <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
-                    <span class="loading loading-spinner loading-md"></span>
-                    <span>Searching for similar detections...</span>
-                </div>
-            </div>
-
-            <!-- Error State -->
-            <div id="error-state" class="hidden">
-                <div class="alert alert-error">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span id="error-message">An error occurred while searching.</span>
-                </div>
-            </div>
-
-            <!-- Search Results -->
-            <div id="search-results" class="hidden">
-                <!-- Source Detection Card -->
-                <div id="source-detection-card" class="mb-6"></div>
-
-                <!-- Similar Detections Timeline -->
-                <h3 class="text-lg font-semibold mb-4">Person Movement Timeline</h3>
-                <div id="timeline-container"></div>
-            </div>
-
-            <!-- Enhanced Empty State (shown when no search performed) -->
-            <div id="empty-state" class="py-8">
-                <div class="bg-gradient-to-br from-primary/5 to-secondary/5 rounded-xl p-8 border border-primary/20">
-                    <div class="text-center mb-8">
-                        <div class="flex items-center justify-center gap-3 mb-4">
-                            <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            <h3 class="text-2xl font-bold text-primary">PERSON RE-IDENTIFICATION</h3>
-                        </div>
-                    </div>
-
-                    <!-- Feature Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                        <!-- AI Detection Card -->
-                        <div class="card bg-base-100 shadow-lg border border-primary/20">
-                            <div class="card-body p-6 text-center">
-                                <div class="flex justify-center mb-4">
-                                    <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                                        <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                        </svg>
-                                    </div>
-                                </div>
-                                <h4 class="text-lg font-semibold text-primary mb-2">👤 AI Detection</h4>
-                                <p class="text-sm text-base-content/70 mb-3">Advanced matching algorithm</p>
-                                <div class="text-xs text-base-content/60">
-                                    Analyzes facial features and clothing patterns with high precision
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Track Movement Card -->
-                        <div class="card bg-base-100 shadow-lg border border-secondary/20">
-                            <div class="card-body p-6 text-center">
-                                <div class="flex justify-center mb-4">
-                                    <div class="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center">
-                                        <svg class="w-8 h-8 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                                <h4 class="text-lg font-semibold text-secondary mb-2">🔄 Track Movement</h4>
-                                <p class="text-sm text-base-content/70 mb-3">Follow the person's journey</p>
-                                <div class="text-xs text-base-content/60">
-                                    Complete movement timeline across all camera locations
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Analyze Patterns Card -->
-                        <div class="card bg-base-100 shadow-lg border border-accent/20">
-                            <div class="card-body p-6 text-center">
-                                <div class="flex justify-center mb-4">
-                                    <div class="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center">
-                                        <svg class="w-8 h-8 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                        </svg>
-                                    </div>
-                                </div>
-                                <h4 class="text-lg font-semibold text-accent mb-2">📊 Analyze Patterns</h4>
-                                <p class="text-sm text-base-content/70 mb-3">Same-day detection analytics</p>
-                                <div class="text-xs text-base-content/60">
-                                    Statistical analysis and confidence scoring
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- How It Works Section -->
-                    <div class="bg-base-100 rounded-lg p-6 border border-base-300">
-                        <div class="flex items-center gap-2 mb-4">
-                            <svg class="w-5 h-5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <h4 class="text-lg font-semibold text-info">💡 How it works:</h4>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div class="flex gap-3">
-                                <div class="badge badge-primary badge-outline font-mono">1</div>
-                                <div>Enter any Detection ID from your surveillance data</div>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="badge badge-primary badge-outline font-mono">2</div>
-                                <div>AI analyzes facial features and clothing patterns</div>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="badge badge-primary badge-outline font-mono">3</div>
-                                <div>System searches across all cameras for matches</div>
-                            </div>
-                            <div class="flex gap-3">
-                                <div class="badge badge-primary badge-outline font-mono">4</div>
-                                <div>View complete movement timeline with confidence scores</div>
-                            </div>
-                        </div>
-                    </div>
+            <div class="form-control w-full max-w-md">
+                <label class="label">
+                    <span class="label-text font-medium">Detection ID</span>
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full max-w-md" />
+                    <button onclick="searchByDetectionId()" class="btn btn-neutral">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                        </svg>
+                        Search
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Dynamic Timeline Container (initially empty) -->
+    <div id="dynamic-timeline-container"></div>
+
 </div>
 
 <script>
+// Function to create timeline card dynamically
+function createTimelineCard() {
+    const container = document.getElementById('dynamic-timeline-container');
+    container.innerHTML = `
+        <div class="card bg-base-100 shadow-sm border border-base-300">
+            <div class="card-body">
+                <h2 class="card-title text-lg font-semibold mb-4">Timeline</h2>
+
+                <!-- Loading State -->
+                <div id="loading-state" class="hidden">
+                    <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
+                        <span class="loading loading-spinner loading-md"></span>
+                        <span>Searching for similar detections...</span>
+                    </div>
+                </div>
+
+                <!-- Error State -->
+                <div id="error-state" class="hidden">
+                    <div class="alert alert-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span id="error-message">An error occurred while searching.</span>
+                    </div>
+                </div>
+
+                <!-- Search Results -->
+                <div id="search-results" class="hidden">
+                    <!-- Source Detection Card -->
+                    <div id="source-detection-card" class="mb-6"></div>
+
+                    <!-- Similar Detections Timeline -->
+                    <h3 class="text-lg font-semibold mb-4">Person Movement Timeline</h3>
+                    <div id="timeline-container"></div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // Person Re-ID Search Functionality
 async function searchByDetectionId() {
     const detectionId = document.getElementById('detection-id-search').value.trim();
@@ -174,6 +91,9 @@ async function searchByDetectionId() {
         showError('Please enter a Detection ID');
         return;
     }
+
+    // Create timeline card if it doesn't exist
+    createTimelineCard();
 
     // Hide previous states
     hideAllStates();
@@ -227,24 +147,20 @@ function displaySourceDetection(detection) {
     const timestamp = detection.timestamp; // Already formatted on server
 
     sourceCard.innerHTML = `
-        <div class="card bg-primary/10 border-primary">
-            <div class="card-body">
-                <h3 class="card-title">Source Detection #${detection.id}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <img src="/api/detections/images/${detection.image_path}"
-                             alt="Detection ${detection.id}"
-                             class="w-full rounded-lg shadow-lg cursor-pointer"
-                             onclick="openImageModal('${detection.image_path}')">
-                    </div>
-                    <div class="space-y-2">
-                        <p><strong>Detection ID:</strong> ${detection.id}</p>
-                        <p><strong>Person ID:</strong> ${detection.person_id || 'N/A'}</p>
-                        <p><strong>Camera:</strong> ${detection.camera_name}</p>
-                        <p><strong>Time:</strong> ${timestamp}</p>
-                        <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
-                    </div>
-                </div>
+        <h3 class="text-lg font-semibold mb-4">Source Detection #${detection.id}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <img src="/api/detections/images/${detection.image_path}"
+                     alt="Detection ${detection.id}"
+                     class="w-full rounded-lg shadow-lg cursor-pointer"
+                     onclick="openImageModal('${detection.image_path}')">
+            </div>
+            <div class="space-y-2">
+                <p><strong>Detection ID:</strong> ${detection.id}</p>
+                <p><strong>Person ID:</strong> ${detection.person_id || 'N/A'}</p>
+                <p><strong>Camera:</strong> ${detection.camera_name}</p>
+                <p><strong>Time:</strong> ${timestamp}</p>
+                <p><strong>Confidence:</strong> ${(detection.confidence * 100).toFixed(1)}%</p>
             </div>
         </div>
     `;
@@ -370,6 +286,9 @@ function openImageModal(imagePath) {
 }
 
 function showError(message) {
+    // Create timeline card if it doesn't exist
+    createTimelineCard();
+
     hideAllStates();
     const errorState = document.getElementById('error-state');
     const errorMessage = document.getElementById('error-message');
@@ -378,10 +297,15 @@ function showError(message) {
 }
 
 function hideAllStates() {
-    document.getElementById('loading-state').classList.add('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('search-results').classList.add('hidden');
-    document.getElementById('empty-state').classList.add('hidden');
+    // Safely hide elements if they exist
+    const loadingState = document.getElementById('loading-state');
+    if (loadingState) loadingState.classList.add('hidden');
+
+    const errorState = document.getElementById('error-state');
+    if (errorState) errorState.classList.add('hidden');
+
+    const searchResults = document.getElementById('search-results');
+    if (searchResults) searchResults.classList.add('hidden');
 }
 
 // Allow Enter key to trigger search
