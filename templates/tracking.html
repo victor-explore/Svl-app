@@ -10,29 +10,111 @@
         <p class="text-base-content/70">Track events and activities over time</p>
     </div>
 
-    <!-- Search by Detection ID Section -->
+    <!-- Unified Person Search Section -->
     <div class="card bg-base-100 shadow-sm border border-base-300 mb-6">
         <div class="card-body">
+            <!-- Card Header -->
             <div class="flex items-center mb-4">
                 <svg class="w-5 h-5 mr-3 text-base-content opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"></path>
                 </svg>
-                <h2 class="card-title text-lg font-semibold">Search by Detection ID</h2>
+                <h2 class="card-title text-lg font-semibold">Track</h2>
             </div>
 
-            <div class="form-control w-full max-w-md">
-                <label class="label">
-                    <span class="label-text font-medium">Detection ID</span>
-                </label>
-                <div class="flex gap-2">
-                    <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full max-w-md" />
-                    <button onclick="searchByDetectionId()" class="btn btn-neutral">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                        </svg>
-                        Search
-                    </button>
+            <!-- Detection ID Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-base-content/70 mb-2">Track by Detection ID</h3>
+                <input type="text" id="detection-id-search" placeholder="Enter Detection ID to search..." class="input input-bordered w-full" />
+            </div>
+
+            <!-- Or Divider -->
+            <div class="flex items-center justify-center mb-6">
+                <span class="text-base-content/50 font-medium">or</span>
+            </div>
+
+            <!-- Image Upload Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-medium text-base-content/70 mb-2">Track by Image</h3>
+
+                <!-- Drag and drop zone -->
+                <div id="drop-zone"
+                     class="border-2 border-dashed border-base-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-base-200 transition-colors">
+                    <svg class="mx-auto h-12 w-12 text-base-content/40 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p class="mb-2 text-sm text-base-content/70">
+                        <span class="font-semibold">Click to upload</span> or drag and drop
+                    </p>
+                    <p class="text-xs text-base-content/50">PNG, JPG or JPEG (MAX. 10MB)</p>
+                    <input type="file" id="file-input" accept="image/png,image/jpeg,image/jpg" class="hidden" />
                 </div>
+
+                <!-- Image preview area -->
+                <div id="image-preview-container" class="hidden mt-4">
+                    <div class="relative">
+                        <img id="image-preview" class="w-full rounded-lg max-h-48 object-cover" alt="Preview" />
+                        <button onclick="clearImageUpload()" class="btn btn-sm btn-circle btn-error absolute top-2 right-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section: Search Parameters -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-4">
+                <!-- Left: Similarity Threshold -->
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Similarity Threshold</span>
+                        <span class="label-text-alt" id="similarity-value">70%</span>
+                    </label>
+                    <input type="range"
+                           id="similarity-threshold"
+                           min="50"
+                           max="100"
+                           value="70"
+                           step="5"
+                           class="range"
+                           onchange="updateSimilarityValue(this.value)" />
+                    <div class="w-full flex justify-between text-xs px-2 mt-1">
+                        <span class="text-base-content/50">50%</span>
+                        <span class="text-base-content/50">75%</span>
+                        <span class="text-base-content/50">100%</span>
+                    </div>
+                </div>
+
+                <!-- Right: Maximum Matches -->
+                <div class="form-control w-full">
+                    <label class="label">
+                        <span class="label-text font-medium">Maximum Matches</span>
+                        <span class="label-text-alt" id="max-matches-value">50</span>
+                    </label>
+                    <input type="range"
+                           id="max-matches"
+                           min="1"
+                           max="100"
+                           value="50"
+                           step="5"
+                           class="range"
+                           onchange="updateMaxMatchesValue(this.value)" />
+                    <div class="w-full flex justify-between text-xs px-2 mt-1">
+                        <span class="text-base-content/50">1</span>
+                        <span class="text-base-content/50">50</span>
+                        <span class="text-base-content/50">100</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Track Button -->
+            <div class="flex justify-end">
+                <button onclick="performSearch()" class="btn btn-neutral">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                    </svg>
+                    Track
+                </button>
             </div>
         </div>
     </div>
@@ -43,6 +125,291 @@
 </div>
 
 <script>
+// Global variable to store selected file
+let selectedFile = null;
+
+// Initialize drag and drop functionality when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    initializeImageUpload();
+});
+
+// Initialize image upload functionality
+function initializeImageUpload() {
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+
+    // Click to upload
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // File input change
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            handleFileUpload(file);
+        }
+    });
+
+    // Drag and drop events
+    dropZone.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-primary', 'bg-base-200');
+    });
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary', 'bg-base-200');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary', 'bg-base-200');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    });
+}
+
+// Handle file upload
+function handleFileUpload(file) {
+    // Validate file type
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+        showError('Please upload a PNG, JPG, or JPEG image file.');
+        return;
+    }
+
+    // Validate file size (10MB max)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+        showError('File size must be less than 10MB.');
+        return;
+    }
+
+    // Store file for later upload
+    selectedFile = file;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const imagePreview = document.getElementById('image-preview');
+        const dropZone = document.getElementById('drop-zone');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+
+        imagePreview.src = e.target.result;
+        dropZone.classList.add('hidden');
+        imagePreviewContainer.classList.remove('hidden');
+    };
+    reader.readAsDataURL(file);
+}
+
+// Clear image upload
+function clearImageUpload() {
+    selectedFile = null;
+    const fileInput = document.getElementById('file-input');
+    const imagePreview = document.getElementById('image-preview');
+    const dropZone = document.getElementById('drop-zone');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+
+    fileInput.value = '';
+    imagePreview.src = '';
+    dropZone.classList.remove('hidden');
+    imagePreviewContainer.classList.add('hidden');
+}
+
+// Unified search function
+async function performSearch() {
+    const detectionId = document.getElementById('detection-id-search').value.trim();
+
+    // Determine search method based on user input
+    if (detectionId && selectedFile) {
+        showError('Please use either Detection ID or Image Upload, not both.');
+        return;
+    } else if (detectionId) {
+        await searchByDetectionId();
+    } else if (selectedFile) {
+        await searchByImage();
+    } else {
+        showError('Please enter a Detection ID or upload an image to search.');
+        return;
+    }
+}
+
+// Search by detection ID
+async function searchByDetectionId() {
+    const detectionId = document.getElementById('detection-id-search').value.trim();
+
+    // Get search parameters
+    const similarityThreshold = document.getElementById('similarity-threshold').value / 100;
+    const maxMatches = parseInt(document.getElementById('max-matches').value);
+
+    // Validate inputs
+    if (!detectionId) {
+        showError('Please enter a Detection ID');
+        return;
+    }
+
+    if (isNaN(maxMatches) || maxMatches < 1 || maxMatches > 100) {
+        showError('Maximum matches must be between 1 and 100');
+        return;
+    }
+
+    // Create timeline card if it doesn't exist
+    createTimelineCard();
+
+    // Hide previous states
+    hideAllStates();
+
+    // Show loading state
+    const loadingState = document.getElementById('loading-state');
+    if (loadingState) {
+        loadingState.innerHTML = `
+            <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
+                <span class="loading loading-spinner loading-md"></span>
+                <div>
+                    <p>Searching for similar detections...</p>
+                    <p class="text-sm text-base-content/60">Threshold: ${(similarityThreshold * 100).toFixed(0)}% | Max matches: ${maxMatches}</p>
+                </div>
+            </div>
+        `;
+        loadingState.classList.remove('hidden');
+    }
+
+    try {
+        // Make API call to search for similar detections
+        const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=${similarityThreshold}&top_k=${maxMatches}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to search for similar detections');
+        }
+
+        if (data.success) {
+            displaySearchResults(data);
+        } else {
+            throw new Error(data.error || 'Search failed');
+        }
+    } catch (error) {
+        console.error('Search error:', error);
+        showError(error.message);
+    } finally {
+        document.getElementById('loading-state').classList.add('hidden');
+    }
+}
+
+// Search by uploaded image
+async function searchByImage() {
+    if (!selectedFile) {
+        showError('Please select an image first.');
+        return;
+    }
+
+    // Get search parameters
+    const similarityThreshold = document.getElementById('similarity-threshold').value / 100;
+    const maxMatches = parseInt(document.getElementById('max-matches').value);
+
+    // Create form data
+    const formData = new FormData();
+    formData.append('image', selectedFile);
+    formData.append('threshold', similarityThreshold);
+    formData.append('top_k', maxMatches);
+
+    // Create timeline card if it doesn't exist
+    createTimelineCard();
+
+    // Hide previous states
+    hideAllStates();
+
+    // Show loading state
+    const loadingState = document.getElementById('loading-state');
+    if (loadingState) {
+        loadingState.innerHTML = `
+            <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
+                <span class="loading loading-spinner loading-md"></span>
+                <div>
+                    <p>Processing uploaded image and searching for similar persons...</p>
+                    <p class="text-sm text-base-content/60">Threshold: ${(similarityThreshold * 100).toFixed(0)}% | Max matches: ${maxMatches}</p>
+                </div>
+            </div>
+        `;
+        loadingState.classList.remove('hidden');
+    }
+
+    try {
+        // Make API call
+        const response = await fetch('/api/detections/search-by-image', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to search by image');
+        }
+
+        if (data.success) {
+            displayImageSearchResults(data);
+        } else {
+            throw new Error(data.error || 'Search failed');
+        }
+    } catch (error) {
+        console.error('Image search error:', error);
+        showError(error.message);
+    } finally {
+        document.getElementById('loading-state').classList.add('hidden');
+    }
+}
+
+// Display image search results
+function displayImageSearchResults(data) {
+    hideAllStates();
+
+    // Show search results container
+    document.getElementById('search-results').classList.remove('hidden');
+
+    // Display uploaded image as source
+    const sourceCard = document.getElementById('source-detection-card');
+    const imagePreview = document.getElementById('image-preview');
+
+    sourceCard.innerHTML = `
+        <h3 class="text-lg font-semibold mb-4">Uploaded Image</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <img src="${imagePreview.src}"
+                     alt="Uploaded Image"
+                     class="w-full rounded-lg shadow-lg">
+            </div>
+            <div class="space-y-2">
+                <p><strong>Filename:</strong> ${data.uploaded_image || selectedFile.name}</p>
+                <p><strong>Total Searched:</strong> ${data.search_params.total_searched}</p>
+                <p><strong>Matches Found:</strong> ${data.search_params.total_matches}</p>
+            </div>
+        </div>
+    `;
+
+    // Display timeline of similar detections
+    displayTimeline(data.person_path || data.similar_detections);
+}
+
+// Update similarity value
+function updateSimilarityValue(value) {
+    document.getElementById('similarity-value').textContent = value + '%';
+}
+
+// Update max matches value
+function updateMaxMatchesValue(value) {
+    document.getElementById('max-matches-value').textContent = value;
+}
+
 // Function to create timeline card dynamically
 function createTimelineCard() {
     const container = document.getElementById('dynamic-timeline-container');
@@ -55,7 +422,10 @@ function createTimelineCard() {
                 <div id="loading-state" class="hidden">
                     <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
                         <span class="loading loading-spinner loading-md"></span>
-                        <span>Searching for similar detections...</span>
+                        <div>
+                            <p>Searching for similar detections...</p>
+                            <p class="text-sm text-base-content/60"></p>
+                        </div>
                     </div>
                 </div>
 
@@ -83,12 +453,32 @@ function createTimelineCard() {
     `;
 }
 
+// Update similarity value display
+function updateSimilarityValue(value) {
+    document.getElementById('similarity-value').textContent = value + '%';
+}
+
+// Update max matches value display
+function updateMaxMatchesValue(value) {
+    document.getElementById('max-matches-value').textContent = value;
+}
+
 // Person Re-ID Search Functionality
 async function searchByDetectionId() {
     const detectionId = document.getElementById('detection-id-search').value.trim();
 
+    // Get search parameters
+    const similarityThreshold = document.getElementById('similarity-threshold').value / 100;  // Convert to 0-1 range
+    const maxMatches = parseInt(document.getElementById('max-matches').value);
+
+    // Validate inputs
     if (!detectionId) {
         showError('Please enter a Detection ID');
+        return;
+    }
+
+    if (isNaN(maxMatches) || maxMatches < 1 || maxMatches > 100) {
+        showError('Maximum matches must be between 1 and 100');
         return;
     }
 
@@ -98,12 +488,24 @@ async function searchByDetectionId() {
     // Hide previous states
     hideAllStates();
 
-    // Show loading state
-    document.getElementById('loading-state').classList.remove('hidden');
+    // Show loading state with parameters
+    const loadingState = document.getElementById('loading-state');
+    if (loadingState) {
+        loadingState.innerHTML = `
+            <div class="flex items-center gap-3 p-4 bg-base-200 rounded-lg">
+                <span class="loading loading-spinner loading-md"></span>
+                <div>
+                    <p>Searching for similar detections...</p>
+                    <p class="text-sm text-base-content/60">Threshold: ${(similarityThreshold * 100).toFixed(0)}% | Max matches: ${maxMatches}</p>
+                </div>
+            </div>
+        `;
+        loadingState.classList.remove('hidden');
+    }
 
     try {
-        // Make API call to search for similar detections
-        const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=0.7&top_k=50`);
+        // Make API call to search for similar detections with dynamic parameters
+        const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=${similarityThreshold}&top_k=${maxMatches}`);
         const data = await response.json();
 
         if (!response.ok) {
@@ -138,6 +540,8 @@ function displaySearchResults(data) {
     // Display search statistics
     if (data.search_params) {
         console.log('Search Statistics:', data.search_params);
+        // Store search params for display in timeline
+        window.lastSearchParams = data.search_params;
     }
 }
 
@@ -230,19 +634,36 @@ function displayTimeline(detections) {
     const uniqueCameras = [...new Set(detections.map(d => d.camera_name))];
     const timeSpan = getTimeSpan(detections);
 
+    // Calculate average similarity
+    const avgSimilarity = detections.reduce((acc, d) => acc + d.similarity, 0) / detections.length;
+
+    // Get search parameters if available
+    const searchThreshold = window.lastSearchParams?.threshold ||
+                           (document.getElementById('similarity-threshold').value / 100);
+    const searchMaxMatches = window.lastSearchParams?.top_k ||
+                            document.getElementById('max-matches').value;
+
     timelineHTML = `
         <div class="stats shadow mb-4">
             <div class="stat">
                 <div class="stat-title">Total Matches</div>
                 <div class="stat-value text-primary">${detections.length}</div>
+                <div class="stat-desc">Max: ${searchMaxMatches}</div>
             </div>
             <div class="stat">
                 <div class="stat-title">Cameras Visited</div>
                 <div class="stat-value text-secondary">${uniqueCameras.length}</div>
+                <div class="stat-desc">${uniqueCameras.join(', ')}</div>
             </div>
             <div class="stat">
                 <div class="stat-title">Time Span</div>
                 <div class="stat-value text-accent text-2xl">${timeSpan}</div>
+                <div class="stat-desc">Movement tracked</div>
+            </div>
+            <div class="stat">
+                <div class="stat-title">Avg Similarity</div>
+                <div class="stat-value text-info">${(avgSimilarity * 100).toFixed(1)}%</div>
+                <div class="stat-desc">Threshold: ${(searchThreshold * 100).toFixed(0)}%</div>
             </div>
         </div>
     ` + timelineHTML;
@@ -311,7 +732,7 @@ function hideAllStates() {
 // Allow Enter key to trigger search
 document.getElementById('detection-id-search').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-        searchByDetectionId();
+        performSearch();
     }
 });
 </script>

@@ -127,6 +127,48 @@ class PersonReID:
             logger.error(f"Error extracting embedding from {image_path}: {e}")
             return None
 
+    def extract_embedding_from_upload(self, image_file) -> np.ndarray:
+        """
+        Extract feature embedding from an uploaded image file
+
+        Args:
+            image_file: File object or file path from upload
+
+        Returns:
+            Normalized feature vector (512 dimensions for OSNet_x0_25)
+        """
+        if not self.initialized:
+            logger.error("PersonReID model not initialized")
+            return None
+
+        try:
+            # Load image from file object or path
+            if hasattr(image_file, 'read'):
+                # File object from upload
+                image = Image.open(image_file).convert('RGB')
+            else:
+                # File path
+                image = Image.open(image_file).convert('RGB')
+
+            # Apply transforms
+            image_tensor = self.transform(image).unsqueeze(0).to(self.device)
+
+            # Extract features
+            with torch.no_grad():
+                features = self.model(image_tensor)
+
+                # Normalize features for cosine similarity
+                features = torch.nn.functional.normalize(features, p=2, dim=1)
+
+                # Convert to numpy array
+                embedding = features.cpu().numpy().flatten()
+
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Error extracting embedding from uploaded image: {e}")
+            return None
+
     def compute_similarity(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
         """
         Compute cosine similarity between two embeddings
@@ -247,6 +289,78 @@ class PersonReID:
             similar_detections = similar_detections[:top_k]
 
         logger.info(f"Found {len(similar_detections)} similar detections for ID {detection_id}")
+        return similar_detections
+
+    def find_similar_by_embedding(self,
+                                 source_embedding: np.ndarray,
+                                 all_detections: List[Dict[str, Any]],
+                                 threshold: float = 0.7,
+                                 top_k: int = 50) -> List[Dict[str, Any]]:
+        """
+        Find similar person detections using a pre-computed embedding
+
+        Args:
+            source_embedding: Pre-computed embedding to search with
+            all_detections: List of detection dictionaries to search through
+            threshold: Minimum similarity threshold (0-1)
+            top_k: Maximum number of results to return
+
+        Returns:
+            List of similar detections sorted by similarity score
+        """
+        if not self.initialized:
+            logger.error("PersonReID model not initialized")
+            return []
+
+        if source_embedding is None:
+            logger.error("Source embedding is None")
+            return []
+
+        similar_detections = []
+
+        # Search through all detections
+        for detection in all_detections:
+            try:
+                # Extract embedding for current detection
+                image_path = detection['image_path']
+                embedding = self.extract_embedding(image_path)
+
+                if embedding is None:
+                    continue
+
+                # Compute similarity
+                similarity = self.compute_similarity(source_embedding, embedding)
+
+                # Apply threshold
+                if similarity >= threshold:
+                    # Create result entry
+                    result = {
+                        'id': detection['id'],
+                        'person_id': detection.get('person_id'),
+                        'camera_id': detection.get('camera_id'),
+                        'camera_name': detection.get('camera_name', f"Camera {detection.get('camera_id')}"),
+                        'timestamp': detection['created_at'].strftime('%m/%d/%Y, %I:%M:%S %p'),
+                        'image_path': detection['image_path'],
+                        'similarity': round(similarity, 3),
+                        'is_source': False,  # No source detection when searching by image
+                        'bbox': detection.get('bbox', []),
+                        'confidence': detection.get('confidence', 0)
+                    }
+
+                    similar_detections.append(result)
+
+            except Exception as e:
+                logger.error(f"Error processing detection {detection.get('id')}: {e}")
+                continue
+
+        # Sort by similarity score (descending)
+        similar_detections.sort(key=lambda x: x['similarity'], reverse=True)
+
+        # Limit to top_k results
+        if len(similar_detections) > top_k:
+            similar_detections = similar_detections[:top_k]
+
+        logger.info(f"Found {len(similar_detections)} similar detections using uploaded image")
         return similar_detections
 
     def find_person_path(self, similar_detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:

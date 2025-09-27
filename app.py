@@ -1524,6 +1524,164 @@ def search_similar_detections(detection_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/detections/search-by-image', methods=['POST'])
+def search_similar_by_image():
+    """
+    Search for similar person detections using an uploaded image
+    """
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+
+        # Check if image file is in request
+        if 'image' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No image file provided'
+            }), 400
+
+        image_file = request.files['image']
+
+        # Check if file has a filename
+        if image_file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No image file selected'
+            }), 400
+
+        # Validate file extension
+        allowed_extensions = {'png', 'jpg', 'jpeg'}
+        filename = image_file.filename.lower()
+        if not any(filename.endswith(ext) for ext in allowed_extensions):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file type. Only PNG, JPG, and JPEG files are allowed'
+            }), 400
+
+        # Get query parameters
+        threshold = float(request.form.get('threshold', 0.7))
+        top_k = int(request.form.get('top_k', 50))
+
+        # Validate threshold
+        if not 0.0 <= threshold <= 1.0:
+            return jsonify({
+                'success': False,
+                'error': 'Threshold must be between 0.0 and 1.0'
+            }), 400
+
+        # Import database and Re-ID modules
+        from database import db_manager
+        from person_reid import get_reid_instance
+
+        # Get Re-ID instance
+        reid_model = get_reid_instance()
+        if not reid_model or not reid_model.initialized:
+            return jsonify({
+                'success': False,
+                'error': 'Person Re-ID model is not available. Please check the logs.'
+            }), 500
+
+        # Extract embedding from uploaded image
+        logger.info(f"Extracting embedding from uploaded image: {filename}")
+        source_embedding = reid_model.extract_embedding_from_upload(image_file)
+
+        if source_embedding is None:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to process uploaded image. Please ensure it contains a person.'
+            }), 400
+
+        # Get detections to search through
+        session = db_manager.get_session()
+        try:
+            from database import Detection, Camera
+            from datetime import datetime, time, date
+
+            # Build query for detections - search today's detections only
+            today = date.today()
+            start_of_day = datetime.combine(today, time.min)
+            end_of_day = datetime.combine(today, time.max)
+
+            query = session.query(Detection).join(Camera).filter(
+                Detection.created_at.between(start_of_day, end_of_day)
+            )
+
+            detections = query.all()
+
+            # Convert to dictionary format
+            all_detections = []
+            for det in detections:
+                all_detections.append({
+                    'id': det.id,
+                    'person_id': det.person_id,
+                    'camera_id': det.camera_id,
+                    'camera_name': det.camera.name if det.camera else f'Camera {det.camera_id}',
+                    'created_at': det.created_at,
+                    'image_path': det.image_path,
+                    'confidence': det.confidence,
+                    'bbox': [det.bbox_x1, det.bbox_y1, det.bbox_x2, det.bbox_y2] if det.bbox_x1 else []
+                })
+
+            if not all_detections:
+                return jsonify({
+                    'success': True,
+                    'similar_detections': [],
+                    'person_path': [],
+                    'search_params': {
+                        'threshold': threshold,
+                        'top_k': top_k,
+                        'total_searched': 0,
+                        'total_matches': 0
+                    },
+                    'message': 'No detections found for today'
+                })
+
+            # Find similar detections using the extracted embedding
+            similar_detections = reid_model.find_similar_by_embedding(
+                source_embedding=source_embedding,
+                all_detections=all_detections,
+                threshold=threshold,
+                top_k=top_k
+            )
+
+            # Organize into chronological path
+            person_path = reid_model.find_person_path(similar_detections)
+
+            # Return results
+            return jsonify({
+                'success': True,
+                'similar_detections': similar_detections,
+                'person_path': person_path,
+                'search_params': {
+                    'threshold': threshold,
+                    'top_k': top_k,
+                    'total_searched': len(all_detections),
+                    'total_matches': len(similar_detections)
+                },
+                'uploaded_image': filename
+            })
+
+        finally:
+            session.close()
+
+    except ValueError as e:
+        logger.error(f"Invalid parameter value: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'Invalid parameter: {str(e)}'
+        }), 400
+
+    except Exception as e:
+        logger.error(f"Error searching by uploaded image: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 if __name__ == '__main__':
     # IMPORTANT: Debug mode controlled by config to prevent app shutdown when all cameras are removed
