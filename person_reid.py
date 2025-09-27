@@ -225,7 +225,7 @@ class PersonReID:
                         'person_id': detection.get('person_id'),
                         'camera_id': detection.get('camera_id'),
                         'camera_name': detection.get('camera_name', f"Camera {detection.get('camera_id')}"),
-                        'timestamp': detection['created_at'],
+                        'timestamp': detection['created_at'].strftime('%m/%d/%Y, %I:%M:%S %p'),
                         'image_path': detection['image_path'],
                         'similarity': round(similarity, 3),
                         'is_source': detection['id'] == detection_id,

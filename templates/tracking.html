@@ -64,107 +64,19 @@
                 <div id="timeline-container"></div>
             </div>
 
-            <!-- Default Timeline (shown when no search) -->
-            <ul class="timeline timeline-vertical" id="default-timeline">
-                <li>
-                    <div class="timeline-start">2024-01-15 09:30:00</div>
-                    <div class="timeline-middle">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-5 w-5"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
+            <!-- Empty State (shown when no search performed) -->
+            <div id="empty-state" class="text-center py-12">
+                <div class="flex flex-col items-center gap-4">
+                    <svg class="w-16 h-16 text-base-content/30" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <div class="text-base-content/60">
+                        <h3 class="text-lg font-semibold mb-2">Person Re-Identification</h3>
+                        <p>Enter a Detection ID above to search for similar persons across cameras</p>
+                        <p class="text-sm mt-2">The system will find matching persons from the same day using AI-powered analysis</p>
                     </div>
-                    <div class="timeline-end timeline-box">Area 1</div>
-                    <hr />
-                </li>
-                <li>
-                    <hr />
-                    <div class="timeline-start">2024-01-15 10:15:00</div>
-                    <div class="timeline-middle">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-5 w-5"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </div>
-                    <div class="timeline-end timeline-box">Area 2</div>
-                    <hr />
-                </li>
-                <li>
-                    <hr />
-                    <div class="timeline-start">2024-01-15 11:45:00</div>
-                    <div class="timeline-middle">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-5 w-5"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </div>
-                    <div class="timeline-end timeline-box">Area 3</div>
-                    <hr />
-                </li>
-                <li>
-                    <hr />
-                    <div class="timeline-start">2024-01-15 14:20:00</div>
-                    <div class="timeline-middle">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-5 w-5"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </div>
-                    <div class="timeline-end timeline-box">Area 4</div>
-                    <hr />
-                </li>
-                <li>
-                    <hr />
-                    <div class="timeline-start">2024-01-15 16:30:00</div>
-                    <div class="timeline-middle">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-5 w-5"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
-                    </div>
-                    <div class="timeline-end timeline-box">Area 5</div>
-                </li>
-            </ul>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -229,7 +141,7 @@ function displaySearchResults(data) {
 function displaySourceDetection(detection) {
     const sourceCard = document.getElementById('source-detection-card');
 
-    const timestamp = new Date(detection.timestamp).toLocaleString();
+    const timestamp = detection.timestamp; // Already formatted on server
 
     sourceCard.innerHTML = `
         <div class="card bg-primary/10 border-primary">
@@ -267,7 +179,7 @@ function displayTimeline(detections) {
     let timelineHTML = '<ul class="timeline timeline-vertical">';
 
     detections.forEach((detection, index) => {
-        const timestamp = new Date(detection.timestamp).toLocaleString();
+        const timestamp = detection.timestamp; // Already formatted on server
         const similarity = (detection.similarity * 100).toFixed(1);
 
         // Color code based on similarity
@@ -391,7 +303,7 @@ function hideAllStates() {
     document.getElementById('loading-state').classList.add('hidden');
     document.getElementById('error-state').classList.add('hidden');
     document.getElementById('search-results').classList.add('hidden');
-    document.getElementById('default-timeline').classList.add('hidden');
+    document.getElementById('empty-state').classList.add('hidden');
 }
 
 // Allow Enter key to trigger search

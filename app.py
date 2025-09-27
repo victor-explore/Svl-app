@@ -1481,7 +1481,7 @@ def search_similar_detections(detection_id):
                 'person_id': source_detection.person_id,
                 'camera_id': source_detection.camera_id,
                 'camera_name': source_detection.camera.name if hasattr(source_detection, 'camera') else f'Camera {source_detection.camera_id}',
-                'timestamp': source_detection.created_at.isoformat(),
+                'timestamp': source_detection.created_at.strftime('%m/%d/%Y, %I:%M:%S %p'),
                 'image_path': source_detection.image_path,
                 'confidence': round(source_detection.confidence, 3) if source_detection.confidence else 0,
                 'bbox': [
