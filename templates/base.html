@@ -49,14 +49,8 @@
             </form>
             <h3 class="font-bold text-lg mb-4">Add New Svl Device</h3>
                     <form id="addCameraForm">
+                        <!-- Common fields for both camera types -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div class="form-control">
-                                <label for="cameraType" class="label"><span class="label-text">Camera Type <span class="text-error">*</span></span></label>
-                                <select class="select select-bordered w-full" id="cameraType" name="cameraType" required>
-                                    <option value="rtsp">RTSP Network Camera</option>
-                                    <option value="usb">USB Camera</option>
-                                </select>
-                            </div>
                             <div class="form-control">
                                 <label for="uniqueId" class="label"><span class="label-text">Unique ID <span class="text-error">*</span></span></label>
                                 <input type="text" class="input input-bordered w-full" id="uniqueId" name="uniqueId"
@@ -65,75 +59,92 @@
                                        title="Only letters, numbers, underscores, and hyphens allowed"
                                        required>
                             </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4">
                             <div class="form-control">
                                 <label for="cameraName" class="label"><span class="label-text">Svl Device Name</span></label>
                                 <input type="text" class="input input-bordered w-full" id="cameraName" name="cameraName" placeholder="e.g., UAV Feed, LORROS Feed (Optional)">
                             </div>
                         </div>
 
-                        <!-- RTSP-specific fields -->
-                        <div id="rtspFields">
-                            <div class="grid grid-cols-1 gap-4">
-                                <div class="form-control">
-                                    <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
-                                    <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream">
+                        <!-- Accordion for Camera Type Selection -->
+                        <div class="mt-4">
+                            <div class="text-sm text-base-content/70 mb-2">Select camera type:</div>
+
+                            <!-- RTSP Network Camera Section -->
+                            <div class="collapse collapse-arrow bg-base-100 border border-base-300">
+                                <input type="radio" name="camera-type-accordion" id="rtspAccordion" value="rtsp" checked />
+                                <div class="collapse-title font-semibold">
+                                    <span class="text-base">📡 RTSP Network Camera</span>
+                                    <div class="text-sm font-normal text-base-content/70">Connect to IP cameras via RTSP stream</div>
+                                </div>
+                                <div class="collapse-content">
+                                    <div class="grid grid-cols-1 gap-4 pt-2">
+                                        <div class="form-control">
+                                            <label for="rtspUrl" class="label"><span class="label-text">RTSP URL <span class="text-error">*</span></span></label>
+                                            <input type="url" class="input input-bordered w-full" id="rtspUrl" name="rtspUrl" placeholder="rtsp://192.168.1.100:554/stream">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div class="form-control">
+                                            <label for="username" class="label"><span class="label-text">Username</span></label>
+                                            <input type="text" class="input input-bordered w-full" id="username" name="username" placeholder="admin">
+                                        </div>
+                                        <div class="form-control">
+                                            <label for="password" class="label"><span class="label-text">Password</span></label>
+                                            <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="form-control">
-                                    <label for="username" class="label"><span class="label-text">Username</span></label>
-                                    <input type="text" class="input input-bordered w-full" id="username" name="username" placeholder="admin">
+                            <!-- USB Camera Section -->
+                            <div class="collapse collapse-arrow bg-base-100 border border-base-300 mt-2">
+                                <input type="radio" name="camera-type-accordion" id="usbAccordion" value="usb" />
+                                <div class="collapse-title font-semibold">
+                                    <span class="text-base">🎥 USB Camera</span>
+                                    <div class="text-sm font-normal text-base-content/70">Connect to locally attached USB cameras</div>
                                 </div>
-                                <div class="form-control">
-                                    <label for="password" class="label"><span class="label-text">Password</span></label>
-                                    <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
+                                <div class="collapse-content">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                                        <div class="form-control">
+                                            <label for="deviceIndex" class="label">
+                                                <span class="label-text">USB Camera Device <span class="text-error">*</span></span>
+                                            </label>
+                                            <select class="select select-bordered w-full" id="deviceIndex" name="deviceIndex">
+                                                <option value="">Select USB Camera...</option>
+                                                <option value="0">Camera 0</option>
+                                                <option value="1">Camera 1</option>
+                                                <option value="2">Camera 2</option>
+                                                <option value="3">Camera 3</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-control">
+                                            <button type="button" class="btn btn-sm mt-8" id="refreshUsbDevices">
+                                                🔄 Detect USB Cameras
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="usbDeviceInfo" class="alert alert-info mt-2 hidden">
+                                        <div class="text-sm"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- USB-specific fields -->
-                        <div id="usbFields" class="hidden">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="form-control">
-                                    <label for="deviceIndex" class="label">
-                                        <span class="label-text">USB Camera Device <span class="text-error">*</span></span>
-                                    </label>
-                                    <select class="select select-bordered w-full" id="deviceIndex" name="deviceIndex">
-                                        <option value="">Select USB Camera...</option>
-                                        <option value="0">Camera 0</option>
-                                        <option value="1">Camera 1</option>
-                                        <option value="2">Camera 2</option>
-                                        <option value="3">Camera 3</option>
-                                    </select>
-                                </div>
-                                <div class="form-control">
-                                    <button type="button" class="btn btn-sm mt-8" id="refreshUsbDevices">
-                                        🔄 Detect USB Cameras
-                                    </button>
-                                </div>
-                            </div>
-                            <div id="usbDeviceInfo" class="alert alert-info mt-2 hidden">
-                                <div class="text-sm"></div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Location fields (optional for both types) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div class="form-control">
                                 <label for="latitude" class="label">
                                     <span class="label-text">Latitude</span>
                                 </label>
-                                <input type="number" step="any" class="input input-bordered w-full" id="latitude" name="latitude" 
+                                <input type="number" step="any" class="input input-bordered w-full" id="latitude" name="latitude"
                                        placeholder="e.g., 40.7589" min="-90" max="90">
                             </div>
                             <div class="form-control">
                                 <label for="longitude" class="label">
                                     <span class="label-text">Longitude</span>
                                 </label>
-                                <input type="number" step="any" class="input input-bordered w-full" id="longitude" name="longitude" 
+                                <input type="number" step="any" class="input input-bordered w-full" id="longitude" name="longitude"
                                        placeholder="e.g., -73.9851" min="-180" max="180">
                             </div>
                         </div>
@@ -160,41 +171,47 @@
         const addCameraBtn = document.getElementById('addCameraBtn');
         const connectionStatus = document.getElementById('connectionStatus');
         const addCameraForm = document.getElementById('addCameraForm');
-        const cameraTypeSelect = document.getElementById('cameraType');
-        const rtspFields = document.getElementById('rtspFields');
-        const usbFields = document.getElementById('usbFields');
+        const rtspAccordion = document.getElementById('rtspAccordion');
+        const usbAccordion = document.getElementById('usbAccordion');
         const deviceIndexSelect = document.getElementById('deviceIndex');
         const refreshUsbBtn = document.getElementById('refreshUsbDevices');
         const usbDeviceInfo = document.getElementById('usbDeviceInfo');
 
-        // Handle camera type switching
-        cameraTypeSelect.addEventListener('change', function() {
-            const isUsb = this.value === 'usb';
+        // Handle accordion radio button changes
+        function updateFieldRequirements() {
+            const isUsb = usbAccordion.checked;
 
             if (isUsb) {
-                // Show USB fields, hide RTSP fields
-                rtspFields.classList.add('hidden');
-                usbFields.classList.remove('hidden');
-
-                // Make RTSP fields optional
+                // Make USB fields required, RTSP fields optional
                 document.getElementById('rtspUrl').removeAttribute('required');
                 document.getElementById('deviceIndex').setAttribute('required', 'required');
-
-                // Load USB devices
-                loadUsbDevices();
             } else {
-                // Show RTSP fields, hide USB fields
-                rtspFields.classList.remove('hidden');
-                usbFields.classList.add('hidden');
-
-                // Make RTSP fields required
+                // Make RTSP fields required, USB fields optional
                 document.getElementById('rtspUrl').setAttribute('required', 'required');
                 document.getElementById('deviceIndex').removeAttribute('required');
             }
 
-            // Clear connection status
+            // Clear connection status when switching types
             connectionStatus.classList.add('hidden');
+        }
+
+        // Set up accordion change listeners
+        rtspAccordion.addEventListener('change', function() {
+            if (this.checked) {
+                updateFieldRequirements();
+            }
         });
+
+        usbAccordion.addEventListener('change', function() {
+            if (this.checked) {
+                updateFieldRequirements();
+                // Load USB devices when USB section is opened
+                loadUsbDevices();
+            }
+        });
+
+        // Initialize field requirements based on default selection
+        updateFieldRequirements();
 
         // USB device detection
         async function loadUsbDevices() {
@@ -236,7 +253,8 @@
         
         // Test Connection functionality
         testConnectionBtn.addEventListener('click', async function() {
-            const cameraType = document.getElementById('cameraType').value;
+            // Determine camera type from accordion selection
+            const cameraType = usbAccordion.checked ? 'usb' : 'rtsp';
             let testData = { camera_type: cameraType };
 
             if (cameraType === 'usb') {
@@ -316,7 +334,8 @@
         // Add Camera functionality
         addCameraBtn.addEventListener('click', async function() {
             const formData = new FormData(addCameraForm);
-            const cameraType = formData.get('cameraType');
+            // Determine camera type from accordion selection
+            const cameraType = usbAccordion.checked ? 'usb' : 'rtsp';
             const latitude = formData.get('latitude')?.trim();
             const longitude = formData.get('longitude')?.trim();
 
@@ -413,6 +432,30 @@
                     alertDiv.remove();
                 }
             }, 4000);
+        }
+
+        // Handle modal opening - reset to RTSP by default
+        const addCameraModal = document.getElementById('addCameraModal');
+        if (addCameraModal) {
+            // Listen for when modal is shown
+            const originalShowModal = addCameraModal.showModal;
+            addCameraModal.showModal = function() {
+                // Reset accordion to RTSP
+                rtspAccordion.checked = true;
+                usbAccordion.checked = false;
+
+                // Update field requirements
+                updateFieldRequirements();
+
+                // Clear connection status
+                connectionStatus.classList.add('hidden');
+
+                // Clear USB device info if it was shown
+                usbDeviceInfo.classList.add('hidden');
+
+                // Call original showModal
+                originalShowModal.call(this);
+            };
         }
     });
     </script>
