@@ -35,14 +35,21 @@ class CameraWorker(threading.Thread):
     Handles RTSP connection, frame capture, and status reporting
     """
     
-    def __init__(self, camera_id: int, name: str, rtsp_url: str,
-                 username: str = '', password: str = ''):
+    def __init__(self, camera_id: int, name: str, rtsp_url: str = None,
+                 username: str = '', password: str = '',
+                 camera_type: str = 'rtsp', device_index: int = None):
         super().__init__()
         self.camera_id = camera_id
         self.name = name
+        self.camera_type = camera_type  # 'rtsp' or 'usb'
+
+        # RTSP specific attributes
         self.rtsp_url = rtsp_url
         self.username = username
         self.password = password
+
+        # USB specific attributes
+        self.device_index = device_index
 
         # Threading controls
         self.frame_queue = queue.Queue(maxsize=FRAME_QUEUE_SIZE)  # Keep for backward compatibility
@@ -70,7 +77,12 @@ class CameraWorker(threading.Thread):
         self._capture_lock = threading.Lock()
 
         self.daemon = True
-        logger.info(f"[{self.name}] Camera worker initialized with detection {'enabled' if self.accepting_detection_frames else 'disabled'}")
+
+        # Log initialization based on camera type
+        if self.camera_type == 'usb':
+            logger.info(f"[{self.name}] USB Camera worker initialized (device index: {self.device_index}) with detection {'enabled' if self.accepting_detection_frames else 'disabled'}")
+        else:
+            logger.info(f"[{self.name}] RTSP Camera worker initialized with detection {'enabled' if self.accepting_detection_frames else 'disabled'}")
 
     @property
     def status(self) -> str:
@@ -111,6 +123,10 @@ class CameraWorker(threading.Thread):
 
     def _create_rtsp_url(self) -> str:
         """Create authenticated RTSP URL if credentials provided"""
+        if self.camera_type == 'usb':
+            # USB cameras don't use URLs
+            return None
+
         if self.username and self.password:
             # Insert credentials into RTSP URL
             if '://' in self.rtsp_url:
@@ -119,26 +135,51 @@ class CameraWorker(threading.Thread):
         return self.rtsp_url
 
     def _setup_opencv_capture(self) -> cv2.VideoCapture:
-        """Setup OpenCV VideoCapture with optimal settings - Performance Optimized"""
-        url = self._create_rtsp_url()
-        cap = cv2.VideoCapture(url)
-        
-        # OpenCV Performance Optimizations (based on documentation)
-        cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, RTSP_TIMEOUT_MS)
-        cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, RTSP_READ_TIMEOUT_MS)
-        
-        # Critical: Minimize latency with smallest buffer
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        
-        # NEW: Hardware acceleration and performance settings
-        try:
-            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('H', '2', '6', '4'))
-            cap.set(cv2.CAP_PROP_FPS, PROCESSING_FPS)  # Set target FPS
-            # Enable hardware decoding if available
-            cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)  # Ensure RGB conversion
-        except:
-            pass  # Ignore if not supported
-            
+        """Setup OpenCV VideoCapture with optimal settings for RTSP or USB"""
+
+        if self.camera_type == 'usb':
+            # USB camera setup
+            if self.device_index is None:
+                logger.error(f"[{self.name}] USB camera device index not specified")
+                return None
+
+            cap = cv2.VideoCapture(self.device_index)
+
+            # USB camera specific settings
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, USB_DEFAULT_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, USB_DEFAULT_HEIGHT)
+            cap.set(cv2.CAP_PROP_FPS, USB_DEFAULT_FPS)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, USB_BUFFER_SIZE)
+
+            # Set auto exposure and white balance if configured
+            if USB_AUTO_EXPOSURE:
+                cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)  # 3 = auto exposure on
+            if USB_AUTO_WHITE_BALANCE:
+                cap.set(cv2.CAP_PROP_AUTO_WB, 1)  # 1 = auto white balance on
+
+            logger.info(f"[{self.name}] USB camera configured: {USB_DEFAULT_WIDTH}x{USB_DEFAULT_HEIGHT} @ {USB_DEFAULT_FPS}fps")
+
+        else:
+            # RTSP camera setup (existing logic)
+            url = self._create_rtsp_url()
+            cap = cv2.VideoCapture(url)
+
+            # OpenCV Performance Optimizations (based on documentation)
+            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, RTSP_TIMEOUT_MS)
+            cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, RTSP_READ_TIMEOUT_MS)
+
+            # Critical: Minimize latency with smallest buffer
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            # NEW: Hardware acceleration and performance settings
+            try:
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('H', '2', '6', '4'))
+                cap.set(cv2.CAP_PROP_FPS, PROCESSING_FPS)  # Set target FPS
+                # Enable hardware decoding if available
+                cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)  # Ensure RGB conversion
+            except:
+                pass  # Ignore if not supported
+
         return cap
 
     def run(self):
@@ -166,15 +207,25 @@ class CameraWorker(threading.Thread):
         with self._capture_lock:
             self._video_capture = cap
         
-        if not cap.isOpened():
-            error_msg = f"Could not open RTSP stream (attempt {self._connection_attempts})"
+        if not cap or not cap.isOpened():
+            if self.camera_type == 'usb':
+                error_msg = f"Could not open USB camera device {self.device_index} (attempt {self._connection_attempts})"
+                reconnect_delay = USB_RECONNECT_DELAY
+            else:
+                error_msg = f"Could not open RTSP stream (attempt {self._connection_attempts})"
+                reconnect_delay = min(RTSP_RECONNECT_DELAY * self._connection_attempts, RTSP_RECONNECT_DELAY_MAX)
+
             logger.warning(f"[{self.name}] {error_msg}")
             self.set_status(CameraStatus.OFFLINE, error_msg)
-            cap.release()
-            time.sleep(min(RTSP_RECONNECT_DELAY * self._connection_attempts, RTSP_RECONNECT_DELAY_MAX))
+            if cap:
+                cap.release()
+            time.sleep(reconnect_delay)
             return
 
-        logger.info(f"[{self.name}] Successfully connected to RTSP stream")
+        if self.camera_type == 'usb':
+            logger.info(f"[{self.name}] Successfully opened USB camera device {self.device_index}")
+        else:
+            logger.info(f"[{self.name}] Successfully connected to RTSP stream")
         # Don't set ONLINE yet - wait for first frame
         self._connection_attempts = 0  # Reset on successful connection
 
@@ -284,7 +335,8 @@ class CameraWorker(threading.Thread):
         if not self._stop_event.is_set():
             # Connection lost, will retry
             self.set_status(CameraStatus.OFFLINE, "Connection lost")
-            time.sleep(RTSP_RECONNECT_DELAY)
+            reconnect_delay = USB_RECONNECT_DELAY if self.camera_type == 'usb' else RTSP_RECONNECT_DELAY
+            time.sleep(reconnect_delay)
 
     def get_latest_frame(self) -> Tuple[Optional[Any], Optional[datetime]]:
         """Get the most recent frame from the display queue"""
@@ -359,13 +411,15 @@ class EnhancedCameraManager:
                 return False
             
             try:
-                # Create worker thread
+                # Create worker thread with support for both RTSP and USB cameras
                 worker = CameraWorker(
                     camera_id=camera_id,
                     name=camera_data['name'],
-                    rtsp_url=camera_data['rtsp_url'],
+                    rtsp_url=camera_data.get('rtsp_url'),  # May be None for USB cameras
                     username=camera_data.get('username', ''),
-                    password=camera_data.get('password', '')
+                    password=camera_data.get('password', ''),
+                    camera_type=camera_data.get('camera_type', 'rtsp'),  # Default to RTSP for backward compatibility
+                    device_index=camera_data.get('device_index')  # USB camera device index
                 )
                 
                 self.workers[camera_id] = worker

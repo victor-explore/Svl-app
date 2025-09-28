@@ -105,6 +105,18 @@ MAP_MIN_ZOOM = 10                           # Minimum zoom level allowed
 MAP_MAX_ZOOM = 18                           # Maximum zoom level allowed
 MAP_TILE_URL_TEMPLATE = "/static/map_tiles/{z}/{x}/{y}.png"  # Template for offline tile URLs
 
+# USB Camera Settings
+USB_CAMERA_ENABLED = True                   # Enable USB camera support
+USB_CAMERA_TIMEOUT_MS = 1000                # Timeout for USB camera operations (milliseconds)
+USB_DEFAULT_FPS = 30                        # Default FPS for USB cameras
+USB_DEFAULT_WIDTH = 640                     # Default resolution width for USB cameras
+USB_DEFAULT_HEIGHT = 480                    # Default resolution height for USB cameras
+USB_BUFFER_SIZE = 1                         # Buffer size for USB cameras (1 for minimal latency)
+USB_MAX_DEVICES = 4                         # Maximum number of USB camera devices to scan
+USB_RECONNECT_DELAY = 0.5                   # Seconds to wait before reconnecting USB camera
+USB_AUTO_EXPOSURE = True                    # Enable auto exposure for USB cameras
+USB_AUTO_WHITE_BALANCE = True               # Enable auto white balance for USB cameras
+
 # Camera Map Settings
 CAMERA_DEFAULT_LATITUDE = None              # Default latitude for new cameras (None = user must specify)
 CAMERA_DEFAULT_LONGITUDE = None             # Default longitude for new cameras (None = user must specify)

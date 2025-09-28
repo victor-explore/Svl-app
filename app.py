@@ -546,16 +546,30 @@ def get_cameras():
 
 @app.route('/api/cameras', methods=['POST'])
 def add_camera():
-    """Add a new camera"""
+    """Add a new camera (RTSP or USB)"""
     try:
         data = request.get_json()
-        
-        # Validate required fields
-        if not data.get('unique_id') or not data.get('rtsp_url'):
+        camera_type = data.get('camera_type', 'rtsp')  # Default to RTSP for backward compatibility
+
+        # Validate required fields based on camera type
+        if not data.get('unique_id'):
             return jsonify({
                 'success': False,
-                'error': 'Unique ID and RTSP URL are required'
+                'error': 'Unique ID is required'
             }), 400
+
+        if camera_type == 'usb':
+            if data.get('device_index') is None:
+                return jsonify({
+                    'success': False,
+                    'error': 'Device index is required for USB cameras'
+                }), 400
+        else:
+            if not data.get('rtsp_url'):
+                return jsonify({
+                    'success': False,
+                    'error': 'RTSP URL is required for RTSP cameras'
+                }), 400
 
         # Validate unique_id format
         import re
@@ -566,13 +580,23 @@ def add_camera():
                 'error': 'Unique ID can only contain letters, numbers, underscores, and hyphens'
             }), 400
 
-        # Check for duplicate RTSP URL
-        existing_camera = next((c for c in cameras if c['rtsp_url'] == data['rtsp_url']), None)
-        if existing_camera:
-            return jsonify({
-                'success': False,
-                'error': f'RTSP URL already exists for camera "{existing_camera["name"]}"'
-            }), 400
+        # Check for duplicate RTSP URL or USB device
+        if camera_type == 'usb':
+            existing_camera = next((c for c in cameras
+                                   if c.get('camera_type') == 'usb'
+                                   and c.get('device_index') == data.get('device_index')), None)
+            if existing_camera:
+                return jsonify({
+                    'success': False,
+                    'error': f'USB device {data.get("device_index")} already in use by camera "{existing_camera["name"]}"'
+                }), 400
+        else:
+            existing_camera = next((c for c in cameras if c.get('rtsp_url') == data.get('rtsp_url')), None)
+            if existing_camera:
+                return jsonify({
+                    'success': False,
+                    'error': f'RTSP URL already exists for camera "{existing_camera["name"]}"'
+                }), 400
         
         # Validate latitude and longitude if provided
         latitude = data.get('latitude')
@@ -611,15 +635,25 @@ def add_camera():
             'id': int(time.time() * 1000),
             'name': data.get('name') or unique_id,  # Use unique_id as fallback display name
             'unique_id': unique_id,                 # Mandatory field
-            'rtsp_url': data['rtsp_url'],
-            'username': data.get('username', ''),
-            'password': data.get('password', ''),
+            'camera_type': camera_type,             # 'rtsp' or 'usb'
             'latitude': latitude,
             'longitude': longitude,
             'status': 'connecting' if data.get('auto_start', True) else 'offline',
             'auto_start': data.get('auto_start', True),
             'created_at': time.time()
         }
+
+        # Add type-specific fields
+        if camera_type == 'usb':
+            new_camera['device_index'] = int(data['device_index'])
+            new_camera['rtsp_url'] = None  # No RTSP URL for USB cameras
+            new_camera['username'] = ''
+            new_camera['password'] = ''
+        else:
+            new_camera['rtsp_url'] = data['rtsp_url']
+            new_camera['username'] = data.get('username', '')
+            new_camera['password'] = data.get('password', '')
+            new_camera['device_index'] = None
 
         # Timestamp-based IDs are automatically unique - no increment needed
 
@@ -631,11 +665,13 @@ def add_camera():
         # Also persist camera to database for map coordinates and detection records
         try:
             from database import db_manager
+            # For USB cameras, store a descriptive URL instead of RTSP URL
+            url_for_db = new_camera['rtsp_url'] if camera_type == 'rtsp' else f"usb://{new_camera['device_index']}"
             db_manager.create_or_get_camera(
                 camera_id=new_camera['id'],
                 camera_name=new_camera['name'],
                 camera_unique_id=new_camera['unique_id'],
-                rtsp_url=new_camera['rtsp_url'],
+                rtsp_url=url_for_db,
                 latitude=new_camera.get('latitude'),
                 longitude=new_camera.get('longitude')
             )
@@ -657,32 +693,55 @@ def add_camera():
 
 @app.route('/api/cameras/test-connection', methods=['POST'])
 def test_camera_connection():
-    """Test RTSP camera connection"""
+    """Test camera connection (RTSP or USB)"""
     try:
         data = request.get_json()
-        rtsp_url = data.get('rtsp_url')
-        username = data.get('username', '')
-        password = data.get('password', '')
+        camera_type = data.get('camera_type', 'rtsp')
+
+        if camera_type == 'usb':
+            device_index = data.get('device_index')
+            if device_index is None:
+                return jsonify({
+                    'success': False,
+                    'error': 'Device index is required for USB cameras'
+                }), 400
+        else:
+            rtsp_url = data.get('rtsp_url')
+            username = data.get('username', '')
+            password = data.get('password', '')
+
+            if not rtsp_url:
+                return jsonify({
+                    'success': False,
+                    'error': 'RTSP URL is required for RTSP cameras'
+                }), 400
         
-        if not rtsp_url:
-            return jsonify({
-                'success': False,
-                'error': 'RTSP URL is required'
-            }), 400
-        
-        # Enhanced RTSP connection test using camera worker
+        # Enhanced connection test using camera worker
         try:
-            print(f"[DEBUG] Testing connection to: {rtsp_url}")
-            
+            if camera_type == 'usb':
+                print(f"[DEBUG] Testing USB camera device: {device_index}")
+            else:
+                print(f"[DEBUG] Testing RTSP connection to: {rtsp_url}")
+
             # Create a temporary camera worker for testing
             from camera_manager import CameraWorker
-            test_worker = CameraWorker(
-                camera_id=999,  # Temporary ID
-                name="Test Camera",
-                rtsp_url=rtsp_url,
-                username=username,
-                password=password
-            )
+
+            if camera_type == 'usb':
+                test_worker = CameraWorker(
+                    camera_id=999,  # Temporary ID
+                    name="Test USB Camera",
+                    camera_type='usb',
+                    device_index=int(device_index)
+                )
+            else:
+                test_worker = CameraWorker(
+                    camera_id=999,  # Temporary ID
+                    name="Test RTSP Camera",
+                    rtsp_url=rtsp_url,
+                    username=username,
+                    password=password,
+                    camera_type='rtsp'
+                )
             
             test_worker.start()
             
@@ -699,18 +758,34 @@ def test_camera_connection():
                     
                     if frame is not None:
                         print(f"[DEBUG] Connection test SUCCESS - frame shape: {frame.shape}")
-                        return jsonify({
-                            'success': True,
-                            'message': 'Connection successful! Camera stream is accessible.',
-                            'rtsp_url': rtsp_url,
-                            'frame_shape': frame.shape
-                        })
+
+                        if camera_type == 'usb':
+                            return jsonify({
+                                'success': True,
+                                'message': f'USB camera device {device_index} connected successfully!',
+                                'device_index': device_index,
+                                'frame_shape': frame.shape
+                            })
+                        else:
+                            return jsonify({
+                                'success': True,
+                                'message': 'RTSP connection successful! Camera stream is accessible.',
+                                'rtsp_url': rtsp_url,
+                                'frame_shape': frame.shape
+                            })
                     else:
-                        return jsonify({
-                            'success': False,
-                            'error': 'Connected but no frames received yet. Stream may need more time.',
-                            'rtsp_url': rtsp_url
-                        })
+                        if camera_type == 'usb':
+                            return jsonify({
+                                'success': False,
+                                'error': f'USB device {device_index} connected but no frames received yet.',
+                                'device_index': device_index
+                            })
+                        else:
+                            return jsonify({
+                                'success': False,
+                                'error': 'RTSP connected but no frames received yet. Stream may need more time.',
+                                'rtsp_url': rtsp_url
+                            })
                         
                 elif status == CameraStatus.ERROR:
                     test_worker.stop()
@@ -740,6 +815,63 @@ def test_camera_connection():
             })
             
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/usb-devices', methods=['GET'])
+def list_usb_devices():
+    """List available USB camera devices"""
+    try:
+        available_devices = []
+
+        # Test USB devices from 0 to USB_MAX_DEVICES
+        for index in range(USB_MAX_DEVICES):
+            # Check if this device index is already in use
+            device_in_use = any(
+                c.get('camera_type') == 'usb' and c.get('device_index') == index
+                for c in cameras
+            )
+
+            # Test if device can be opened
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                # Get device info if available
+                ret, frame = cap.read()
+                if ret and frame is not None:
+                    height, width = frame.shape[:2]
+                    available_devices.append({
+                        'index': index,
+                        'name': f'USB Camera {index}',
+                        'available': not device_in_use,
+                        'in_use': device_in_use,
+                        'resolution': f'{width}x{height}',
+                        'width': width,
+                        'height': height
+                    })
+                else:
+                    available_devices.append({
+                        'index': index,
+                        'name': f'USB Camera {index}',
+                        'available': not device_in_use,
+                        'in_use': device_in_use,
+                        'resolution': 'Unknown',
+                        'width': None,
+                        'height': None
+                    })
+                cap.release()
+
+        return jsonify({
+            'success': True,
+            'devices': available_devices,
+            'count': len(available_devices),
+            'max_devices_scanned': USB_MAX_DEVICES
+        })
+
+    except Exception as e:
+        logger.error(f"Error listing USB devices: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
