@@ -12,11 +12,13 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Get detection image base directory from config if available
+# Get detection image base directory and model path from config if available
 try:
     from config import DETECTION_IMAGE_BASE_PATH as DETECTION_IMAGE_DIR
+    from config import PERSON_REID_MODEL_PATH
 except ImportError:
     DETECTION_IMAGE_DIR = 'detection_images'
+    PERSON_REID_MODEL_PATH = './osnet_x0_25_imagenet.pth'
 
 try:
     import torch
@@ -46,12 +48,32 @@ class PersonReID:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             logger.info(f"Using device: {self.device}")
 
-            # Load OSNet_x0_25 model
-            self.model = torchreid.models.build_model(
-                name='osnet_x0_25',
-                num_classes=1000,  # Dummy value, we use features only
-                pretrained=True
-            )
+            # Load OSNet_x0_25 model from local file (using config path)
+            if os.path.isabs(PERSON_REID_MODEL_PATH):
+                local_model_path = PERSON_REID_MODEL_PATH
+            else:
+                local_model_path = os.path.join(os.path.dirname(__file__), PERSON_REID_MODEL_PATH)
+
+            if os.path.exists(local_model_path):
+                # Build model without pretrained weights
+                self.model = torchreid.models.build_model(
+                    name='osnet_x0_25',
+                    num_classes=1000,  # Dummy value, we use features only
+                    pretrained=False
+                )
+
+                # Load weights from local file
+                torchreid.utils.load_pretrained_weights(self.model, local_model_path)
+                logger.info(f"Loaded OSNet weights from local file: {local_model_path}")
+            else:
+                # Fallback to auto-download if local file doesn't exist
+                logger.warning(f"Local model file not found at {local_model_path}, falling back to auto-download")
+                self.model = torchreid.models.build_model(
+                    name='osnet_x0_25',
+                    num_classes=1000,  # Dummy value, we use features only
+                    pretrained=True
+                )
+                logger.info("Loaded OSNet weights from online (auto-download)")
 
             # Set to evaluation mode
             self.model.eval()
@@ -208,22 +230,24 @@ class PersonReID:
                               detection_id: int,
                               all_detections: List[Dict[str, Any]],
                               threshold: float = 0.7,
-                              top_k: int = 50) -> List[Dict[str, Any]]:
+                              top_k: int = 50,
+                              max_search: int = 200) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
         """
-        Find similar person detections from a list of detections
+        Find similar person detections from a list of detections with early stopping optimization
 
         Args:
             detection_id: ID of the source detection to search for
             all_detections: List of detection dictionaries from same day
             threshold: Minimum similarity threshold (0-1)
             top_k: Maximum number of results to return
+            max_search: Maximum number of detections to search through
 
         Returns:
-            List of similar detections sorted by similarity score
+            Tuple of (similar detections sorted by similarity, search statistics)
         """
         if not self.initialized:
             logger.error("PersonReID model not initialized")
-            return []
+            return [], {'searched': 0, 'found': 0}
 
         # Find source detection
         source_detection = None
@@ -234,7 +258,7 @@ class PersonReID:
 
         if not source_detection:
             logger.error(f"Source detection {detection_id} not found")
-            return []
+            return [], {'searched': 0, 'found': 0}
 
         # Extract embedding for source detection
         source_image_path = source_detection['image_path']
@@ -242,13 +266,24 @@ class PersonReID:
 
         if source_embedding is None:
             logger.error(f"Failed to extract embedding for source detection {detection_id}")
-            return []
+            return [], {'searched': 0, 'found': 0}
 
-        # Compare with all detections (including the source for verification)
+        # Sort detections by timestamp (newest first) for more relevant results
+        sorted_detections = sorted(all_detections,
+                                 key=lambda x: x['created_at'],
+                                 reverse=True)
+
+        # Limit search to max_search detections
+        detections_to_search = sorted_detections[:max_search]
+
         similar_detections = []
+        searched_count = 0
+        found_count = 0
 
-        for detection in all_detections:
+        for detection in detections_to_search:
             try:
+                searched_count += 1
+
                 # Extract embedding for current detection
                 image_path = detection['image_path']
                 embedding = self.extract_embedding(image_path)
@@ -261,6 +296,8 @@ class PersonReID:
 
                 # Apply threshold
                 if similarity >= threshold:
+                    found_count += 1
+
                     # Create result entry
                     result = {
                         'id': detection['id'],
@@ -277,6 +314,12 @@ class PersonReID:
 
                     similar_detections.append(result)
 
+                    # Early stopping: if we have enough high-quality matches, we can stop
+                    # Only stop if we have at least top_k matches with good similarity
+                    if found_count >= top_k * 1.5:  # Search a bit more to ensure best matches
+                        logger.info(f"Early stopping: Found {found_count} matches after searching {searched_count} detections")
+                        break
+
             except Exception as e:
                 logger.error(f"Error processing detection {detection.get('id')}: {e}")
                 continue
@@ -288,39 +331,60 @@ class PersonReID:
         if len(similar_detections) > top_k:
             similar_detections = similar_detections[:top_k]
 
-        logger.info(f"Found {len(similar_detections)} similar detections for ID {detection_id}")
-        return similar_detections
+        stats = {
+            'searched': searched_count,
+            'found': found_count,
+            'total_available': len(all_detections),
+            'returned': len(similar_detections)
+        }
+
+        logger.info(f"Search stats for ID {detection_id}: searched={searched_count}, found={found_count}, returned={len(similar_detections)}")
+        return similar_detections, stats
 
     def find_similar_by_embedding(self,
                                  source_embedding: np.ndarray,
                                  all_detections: List[Dict[str, Any]],
                                  threshold: float = 0.7,
-                                 top_k: int = 50) -> List[Dict[str, Any]]:
+                                 top_k: int = 50,
+                                 max_search: int = 200) -> Tuple[List[Dict[str, Any]], Dict[str, int]]:
         """
-        Find similar person detections using a pre-computed embedding
+        Find similar person detections using a pre-computed embedding with early stopping
 
         Args:
             source_embedding: Pre-computed embedding to search with
             all_detections: List of detection dictionaries to search through
             threshold: Minimum similarity threshold (0-1)
             top_k: Maximum number of results to return
+            max_search: Maximum number of detections to search through
 
         Returns:
-            List of similar detections sorted by similarity score
+            Tuple of (similar detections sorted by similarity, search statistics)
         """
         if not self.initialized:
             logger.error("PersonReID model not initialized")
-            return []
+            return [], {'searched': 0, 'found': 0}
 
         if source_embedding is None:
             logger.error("Source embedding is None")
-            return []
+            return [], {'searched': 0, 'found': 0}
+
+        # Sort detections by timestamp (newest first) for more relevant results
+        sorted_detections = sorted(all_detections,
+                                 key=lambda x: x['created_at'],
+                                 reverse=True)
+
+        # Limit search to max_search detections
+        detections_to_search = sorted_detections[:max_search]
 
         similar_detections = []
+        searched_count = 0
+        found_count = 0
 
-        # Search through all detections
-        for detection in all_detections:
+        # Search through limited detections with early stopping
+        for detection in detections_to_search:
             try:
+                searched_count += 1
+
                 # Extract embedding for current detection
                 image_path = detection['image_path']
                 embedding = self.extract_embedding(image_path)
@@ -333,6 +397,8 @@ class PersonReID:
 
                 # Apply threshold
                 if similarity >= threshold:
+                    found_count += 1
+
                     # Create result entry
                     result = {
                         'id': detection['id'],
@@ -349,6 +415,11 @@ class PersonReID:
 
                     similar_detections.append(result)
 
+                    # Early stopping: if we have enough high-quality matches
+                    if found_count >= top_k * 1.5:  # Search a bit more to ensure best matches
+                        logger.info(f"Early stopping: Found {found_count} matches after searching {searched_count} detections")
+                        break
+
             except Exception as e:
                 logger.error(f"Error processing detection {detection.get('id')}: {e}")
                 continue
@@ -360,8 +431,15 @@ class PersonReID:
         if len(similar_detections) > top_k:
             similar_detections = similar_detections[:top_k]
 
-        logger.info(f"Found {len(similar_detections)} similar detections using uploaded image")
-        return similar_detections
+        stats = {
+            'searched': searched_count,
+            'found': found_count,
+            'total_available': len(all_detections),
+            'returned': len(similar_detections)
+        }
+
+        logger.info(f"Search stats for uploaded image: searched={searched_count}, found={found_count}, returned={len(similar_detections)}")
+        return similar_detections, stats
 
     def find_person_path(self, similar_detections: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """

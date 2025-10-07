@@ -154,6 +154,7 @@ python scripts/setup_map.py
 - JPEG quality: 70% (balance between quality and bandwidth)
 - Frame processing: 25 FPS, 10-frame buffer per camera
 - YOLOv8n model: Lightweight, good for real-time processing
+- OSNet person re-identification: Optimized similarity search with early stopping
 
 ## Frontend Architecture
 - **Tailwind CSS + DaisyUI**: Component styling framework
@@ -176,15 +177,17 @@ python scripts/setup_map.py
 
 **Auto-Initialization**
 - YOLOv8 model downloaded automatically on first detection attempt
+- OSNet person re-identification model loaded from local file (`osnet_x0_25_imagenet.pth`)
 - Database tables created automatically via SQLAlchemy
 - Cameras auto-initialize on startup using `EnhancedCameraManager`
 
 ## Configuration Files
 
-**user_settings.json** (Runtime Configuration)
+**config.py** (System Configuration)
 - RTSP connection timeouts and reconnection parameters
 - Frame processing settings (FPS, quality, queue sizes)
 - Person detection parameters (confidence, intervals, resize dimensions)
+- Person re-identification model path (`PERSON_REID_MODEL_PATH`)
 - Database and storage settings
 
 **requirements.txt** (Dependencies)
@@ -202,6 +205,7 @@ python scripts/setup_map.py
 ├── detection_storage.py     # Image storage management
 ├── user_settings.json       # Runtime configuration
 ├── yolov8n.pt              # YOLOv8 model file (auto-downloaded)
+├── osnet_x0_25_imagenet.pth # OSNet person re-identification model (local file)
 ├── detection_records.db     # SQLite database
 ├── detection_images/        # Date-organized detection images
 ├── static/                  # Web assets and offline map tiles

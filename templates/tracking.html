@@ -390,8 +390,9 @@ function displayImageSearchResults(data) {
             </div>
             <div class="space-y-2">
                 <p><strong>Filename:</strong> ${data.uploaded_image || selectedFile.name}</p>
-                <p><strong>Total Searched:</strong> ${data.search_params.total_searched}</p>
-                <p><strong>Matches Found:</strong> ${data.search_params.total_matches}</p>
+                <p><strong>Images Searched:</strong> ${data.search_params.total_searched} of ${data.search_params.total_available || data.search_params.total_searched}</p>
+                <p><strong>Matches Found:</strong> ${data.search_params.total_found || data.search_params.total_matches}</p>
+                <p><strong>Returned:</strong> ${data.search_params.total_matches}</p>
             </div>
         </div>
     `;
@@ -642,18 +643,20 @@ function displayTimeline(detections) {
                            (document.getElementById('similarity-threshold').value / 100);
     const searchMaxMatches = window.lastSearchParams?.top_k ||
                             document.getElementById('max-matches').value;
+    const totalSearched = window.lastSearchParams?.total_searched || detections.length;
+    const totalAvailable = window.lastSearchParams?.total_available || detections.length;
 
     timelineHTML = `
         <div class="stats shadow mb-4">
             <div class="stat">
                 <div class="stat-title">Total Matches</div>
                 <div class="stat-value text-primary">${detections.length}</div>
-                <div class="stat-desc">Max: ${searchMaxMatches}</div>
+                <div class="stat-desc">Max requested: ${searchMaxMatches}</div>
             </div>
             <div class="stat">
-                <div class="stat-title">Cameras Visited</div>
-                <div class="stat-value text-secondary">${uniqueCameras.length}</div>
-                <div class="stat-desc">${uniqueCameras.join(', ')}</div>
+                <div class="stat-title">Search Efficiency</div>
+                <div class="stat-value text-secondary">${totalSearched}/${totalAvailable}</div>
+                <div class="stat-desc">Searched / Available</div>
             </div>
             <div class="stat">
                 <div class="stat-title">Time Span</div>

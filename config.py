@@ -60,6 +60,9 @@ ERROR_MESSAGES = {
 PERSON_DETECTION_ENABLED = True                # Enable person detection globally
 PERSON_DETECTION_MODEL = './yolov8n.pt'       # YOLOv8 model to use (yolov8n.pt is fastest)
 PERSON_DETECTION_CONFIDENCE = 0.5             # Minimum confidence threshold for detections
+
+# Person Re-Identification Settings
+PERSON_REID_MODEL_PATH = './osnet_x0_25_imagenet.pth'  # OSNet model for person re-identification
 PERSON_DETECTION_INTERVAL = 30                # Process every 30 frames (~1.2 seconds at 25 FPS)
 PERSON_DETECTION_MAX_HISTORY = 100            # Maximum detection results to keep per camera
 
@@ -116,6 +119,12 @@ USB_MAX_DEVICES = 4                         # Maximum number of USB camera devic
 USB_RECONNECT_DELAY = 0.5                   # Seconds to wait before reconnecting USB camera
 USB_AUTO_EXPOSURE = True                    # Enable auto exposure for USB cameras
 USB_AUTO_WHITE_BALANCE = True               # Enable auto white balance for USB cameras
+
+# USB Detection Optimization Settings
+USB_SCAN_TIMEOUT_MS = 500                   # Timeout for USB device scanning (reduced for speed)
+USB_QUICK_SCAN = True                       # Skip resolution detection for faster scanning
+USB_PARALLEL_SCAN = True                    # Use parallel scanning for multiple devices
+USB_SCAN_MAX_WORKERS = 4                    # Number of parallel workers for USB scanning
 
 # Camera Map Settings
 CAMERA_DEFAULT_LATITUDE = None              # Default latitude for new cameras (None = user must specify)

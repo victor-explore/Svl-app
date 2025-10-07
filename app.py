@@ -823,51 +823,97 @@ def test_camera_connection():
 
 @app.route('/api/usb-devices', methods=['GET'])
 def list_usb_devices():
-    """List available USB camera devices"""
+    """List available USB camera devices with optimized parallel scanning"""
     try:
+        import concurrent.futures
+
+        # Get list of devices already in use
+        devices_in_use = {
+            c.get('device_index')
+            for c in cameras
+            if c.get('camera_type') == 'usb'
+        }
+
+        def check_usb_device(index):
+            """Check a single USB device - optimized for speed"""
+            try:
+                # Quick check with reduced timeout
+                cap = cv2.VideoCapture(index)
+
+                # Set reduced timeout for faster scanning
+                if hasattr(cv2, 'CAP_PROP_OPEN_TIMEOUT_MSEC'):
+                    cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, USB_SCAN_TIMEOUT_MS)
+
+                if cap.isOpened():
+                    device_info = {
+                        'index': index,
+                        'name': f'USB Camera {index}',
+                        'available': index not in devices_in_use,
+                        'in_use': index in devices_in_use,
+                    }
+
+                    # Quick scan mode - skip resolution detection for speed
+                    if not USB_QUICK_SCAN:
+                        # Only get resolution if not in quick scan mode
+                        ret, frame = cap.read()
+                        if ret and frame is not None:
+                            height, width = frame.shape[:2]
+                            device_info['resolution'] = f'{width}x{height}'
+                            device_info['width'] = width
+                            device_info['height'] = height
+                        else:
+                            device_info['resolution'] = 'Unknown'
+                            device_info['width'] = None
+                            device_info['height'] = None
+                    else:
+                        # Quick scan - don't read frames
+                        device_info['resolution'] = 'Quick scan'
+                        device_info['width'] = None
+                        device_info['height'] = None
+
+                    cap.release()
+                    return device_info
+                else:
+                    # Device not available
+                    return None
+
+            except Exception as e:
+                logger.debug(f"Error checking USB device {index}: {e}")
+                return None
+
         available_devices = []
 
-        # Test USB devices from 0 to USB_MAX_DEVICES
-        for index in range(USB_MAX_DEVICES):
-            # Check if this device index is already in use
-            device_in_use = any(
-                c.get('camera_type') == 'usb' and c.get('device_index') == index
-                for c in cameras
-            )
+        if USB_PARALLEL_SCAN:
+            # Parallel scanning - much faster for multiple devices
+            with concurrent.futures.ThreadPoolExecutor(max_workers=USB_SCAN_MAX_WORKERS) as executor:
+                # Submit all device checks in parallel
+                futures = [
+                    executor.submit(check_usb_device, index)
+                    for index in range(USB_MAX_DEVICES)
+                ]
 
-            # Test if device can be opened
-            cap = cv2.VideoCapture(index)
-            if cap.isOpened():
-                # Get device info if available
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    height, width = frame.shape[:2]
-                    available_devices.append({
-                        'index': index,
-                        'name': f'USB Camera {index}',
-                        'available': not device_in_use,
-                        'in_use': device_in_use,
-                        'resolution': f'{width}x{height}',
-                        'width': width,
-                        'height': height
-                    })
-                else:
-                    available_devices.append({
-                        'index': index,
-                        'name': f'USB Camera {index}',
-                        'available': not device_in_use,
-                        'in_use': device_in_use,
-                        'resolution': 'Unknown',
-                        'width': None,
-                        'height': None
-                    })
-                cap.release()
+                # Collect results as they complete
+                for future in concurrent.futures.as_completed(futures):
+                    device_info = future.result()
+                    if device_info is not None:
+                        available_devices.append(device_info)
+        else:
+            # Sequential scanning (fallback)
+            for index in range(USB_MAX_DEVICES):
+                device_info = check_usb_device(index)
+                if device_info is not None:
+                    available_devices.append(device_info)
+
+        # Sort by device index for consistent ordering
+        available_devices.sort(key=lambda x: x['index'])
 
         return jsonify({
             'success': True,
             'devices': available_devices,
             'count': len(available_devices),
-            'max_devices_scanned': USB_MAX_DEVICES
+            'max_devices_scanned': USB_MAX_DEVICES,
+            'scan_mode': 'quick' if USB_QUICK_SCAN else 'full',
+            'parallel_scan': USB_PARALLEL_SCAN
         })
 
     except Exception as e:
@@ -1546,6 +1592,7 @@ def search_similar_detections(detection_id):
         # Get query parameters
         threshold = float(request.args.get('threshold', 0.7))
         top_k = int(request.args.get('top_k', 50))
+        max_search = int(request.args.get('max_search', 200))  # New parameter for search limit
 
         # Validate threshold
         if not 0.0 <= threshold <= 1.0:
@@ -1579,8 +1626,9 @@ def search_similar_detections(detection_id):
             end_of_day = datetime.combine(detection_date, time.max)
 
             # Use enriched detection history to get camera names
+            # Get more than max_search to allow for sorting and limiting
             all_detections = db_manager.get_enriched_detection_history(
-                limit=1000,  # Get all detections from the day
+                limit=min(1000, max_search * 2),  # Get enough for sorting
                 start_date=start_of_day,
                 end_date=end_of_day
             )
@@ -1596,12 +1644,13 @@ def search_similar_detections(detection_id):
                     'error': 'Person Re-ID model is not available. Please install torchreid.'
                 }), 500
 
-            # Find similar detections
-            similar_detections = reid_model.find_similar_detections(
+            # Find similar detections with optimized search
+            similar_detections, search_stats = reid_model.find_similar_detections(
                 detection_id=detection_id,
                 all_detections=all_detections,
                 threshold=threshold,
-                top_k=top_k
+                top_k=top_k,
+                max_search=max_search
             )
 
             # Organize into chronological path
@@ -1633,8 +1682,11 @@ def search_similar_detections(detection_id):
                 'search_params': {
                     'threshold': threshold,
                     'top_k': top_k,
+                    'max_search': max_search,
                     'search_date': detection_date.isoformat(),
-                    'total_searched': len(all_detections),
+                    'total_searched': search_stats.get('searched', len(all_detections)),
+                    'total_available': search_stats.get('total_available', len(all_detections)),
+                    'total_found': search_stats.get('found', len(similar_detections)),
                     'total_matches': len(similar_detections)
                 }
             })
@@ -1697,6 +1749,7 @@ def search_similar_by_image():
         # Get query parameters
         threshold = float(request.form.get('threshold', 0.7))
         top_k = int(request.form.get('top_k', 50))
+        max_search = int(request.form.get('max_search', 200))  # New parameter for search limit
 
         # Validate threshold
         if not 0.0 <= threshold <= 1.0:
@@ -1766,18 +1819,20 @@ def search_similar_by_image():
                     'search_params': {
                         'threshold': threshold,
                         'top_k': top_k,
+                        'max_search': max_search,
                         'total_searched': 0,
                         'total_matches': 0
                     },
                     'message': 'No detections found for today'
                 })
 
-            # Find similar detections using the extracted embedding
-            similar_detections = reid_model.find_similar_by_embedding(
+            # Find similar detections using the extracted embedding with optimized search
+            similar_detections, search_stats = reid_model.find_similar_by_embedding(
                 source_embedding=source_embedding,
                 all_detections=all_detections,
                 threshold=threshold,
-                top_k=top_k
+                top_k=top_k,
+                max_search=max_search
             )
 
             # Organize into chronological path
@@ -1791,7 +1846,10 @@ def search_similar_by_image():
                 'search_params': {
                     'threshold': threshold,
                     'top_k': top_k,
-                    'total_searched': len(all_detections),
+                    'max_search': max_search,
+                    'total_searched': search_stats.get('searched', len(all_detections)),
+                    'total_available': search_stats.get('total_available', len(all_detections)),
+                    'total_found': search_stats.get('found', len(similar_detections)),
                     'total_matches': len(similar_detections)
                 },
                 'uploaded_image': filename

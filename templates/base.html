@@ -118,11 +118,6 @@
                                                 <option value="3">Camera 3</option>
                                             </select>
                                         </div>
-                                        <div class="form-control">
-                                            <button type="button" class="btn btn-sm mt-8" id="refreshUsbDevices">
-                                                🔄 Detect USB Cameras
-                                            </button>
-                                        </div>
                                     </div>
                                     <div id="usbDeviceInfo" class="alert alert-info mt-2 hidden">
                                         <div class="text-sm"></div>
@@ -174,7 +169,6 @@
         const rtspAccordion = document.getElementById('rtspAccordion');
         const usbAccordion = document.getElementById('usbAccordion');
         const deviceIndexSelect = document.getElementById('deviceIndex');
-        const refreshUsbBtn = document.getElementById('refreshUsbDevices');
         const usbDeviceInfo = document.getElementById('usbDeviceInfo');
 
         // Handle accordion radio button changes
@@ -205,19 +199,41 @@
         usbAccordion.addEventListener('change', function() {
             if (this.checked) {
                 updateFieldRequirements();
-                // Load USB devices when USB section is opened
-                loadUsbDevices();
+                // Load USB devices when USB section is opened (with loading indicator)
+                loadUsbDevices(true);
             }
         });
 
         // Initialize field requirements based on default selection
         updateFieldRequirements();
 
-        // USB device detection
-        async function loadUsbDevices() {
+        // USB device detection with loading indicator
+        let usbScanInProgress = false;
+
+        async function loadUsbDevices(showLoading = true) {
+            // Prevent multiple simultaneous scans
+            if (usbScanInProgress) {
+                console.log('USB scan already in progress, skipping...');
+                return;
+            }
+
+            usbScanInProgress = true;
+
             try {
+                if (showLoading) {
+                    // Show loading indicator immediately
+                    usbDeviceInfo.classList.remove('hidden');
+                    usbDeviceInfo.className = 'alert alert-info mt-2';
+                    usbDeviceInfo.querySelector('div').innerHTML = `
+                        <span class="loading loading-spinner loading-xs"></span>
+                        <span class="ml-2">Detecting USB cameras...</span>
+                    `;
+                }
+
+                const startTime = performance.now();
                 const response = await fetch('/api/usb-devices');
                 const result = await response.json();
+                const scanTime = performance.now() - startTime;
 
                 if (result.success) {
                     deviceIndexSelect.innerHTML = '<option value="">Select USB Camera...</option>';
@@ -230,7 +246,14 @@
                         result.devices.forEach(device => {
                             const option = document.createElement('option');
                             option.value = device.index;
-                            option.textContent = `${device.name} (${device.resolution})`;
+
+                            // Handle quick scan vs full scan display
+                            let resolutionText = device.resolution;
+                            if (resolutionText === 'Quick scan') {
+                                resolutionText = 'Device ' + device.index;
+                            }
+
+                            option.textContent = `${device.name} (${resolutionText})`;
                             if (device.in_use) {
                                 option.textContent += ' [IN USE]';
                                 option.disabled = true;
@@ -239,18 +262,26 @@
                         });
 
                         usbDeviceInfo.classList.remove('hidden');
-                        usbDeviceInfo.querySelector('div').innerHTML = `Found ${result.devices.length} USB camera(s)`;
-                        usbDeviceInfo.className = 'alert alert-info mt-2';
+                        const scanInfo = result.scan_mode === 'quick' ? ' (Quick scan)' : '';
+                        const timeInfo = scanTime < 1000 ? ` in ${Math.round(scanTime)}ms` : '';
+                        usbDeviceInfo.querySelector('div').innerHTML = `Found ${result.devices.length} USB camera(s)${scanInfo}${timeInfo}`;
+                        usbDeviceInfo.className = 'alert alert-success mt-2';
                     }
+                } else {
+                    usbDeviceInfo.classList.remove('hidden');
+                    usbDeviceInfo.querySelector('div').innerHTML = 'Error detecting USB cameras';
+                    usbDeviceInfo.className = 'alert alert-error mt-2';
                 }
             } catch (error) {
                 console.error('Error loading USB devices:', error);
+                usbDeviceInfo.classList.remove('hidden');
+                usbDeviceInfo.querySelector('div').innerHTML = 'Network error detecting USB cameras';
+                usbDeviceInfo.className = 'alert alert-error mt-2';
+            } finally {
+                usbScanInProgress = false;
             }
         }
 
-        // Refresh USB devices button
-        refreshUsbBtn.addEventListener('click', loadUsbDevices);
-        
         // Test Connection functionality
         testConnectionBtn.addEventListener('click', async function() {
             // Determine camera type from accordion selection
@@ -452,6 +483,14 @@
 
                 // Clear USB device info if it was shown
                 usbDeviceInfo.classList.add('hidden');
+
+                // Pre-scan USB devices in background (no loading indicator)
+                // This makes the USB section feel instant when opened
+                setTimeout(() => {
+                    if (!usbScanInProgress) {
+                        loadUsbDevices(false);  // Silent background scan
+                    }
+                }, 100);
 
                 // Call original showModal
                 originalShowModal.call(this);
