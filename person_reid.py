@@ -22,11 +22,20 @@ except ImportError:
 
 try:
     import torch
+    logger.info(f"torch imported successfully, version: {torch.__version__}")
     import torchvision.transforms as T
+    logger.info(f"torchvision.transforms imported successfully")
     import torchreid
+    logger.info(f"torchreid imported successfully")
     TORCHREID_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     TORCHREID_AVAILABLE = False
+    logger.error("="*80)
+    logger.error("FAILED TO IMPORT TORCHREID OR DEPENDENCIES")
+    logger.error(f"Import error: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+    logger.error("="*80)
     logger.warning("torchreid not installed. Person Re-ID features will be disabled.")
 
 class PersonReID:
@@ -40,7 +49,11 @@ class PersonReID:
         self.initialized = False
 
         if not TORCHREID_AVAILABLE:
-            logger.error("torchreid is not available. Install it with: pip install torchreid torch torchvision")
+            logger.error("="*80)
+            logger.error("PERSON RE-ID INITIALIZATION FAILED")
+            logger.error("torchreid is not available. Install it with:")
+            logger.error("  pip install torchreid torch torchvision")
+            logger.error("="*80)
             return
 
         try:
@@ -90,7 +103,13 @@ class PersonReID:
             logger.info("PersonReID model initialized successfully")
 
         except Exception as e:
-            logger.error(f"Failed to initialize PersonReID model: {e}")
+            logger.error("="*80)
+            logger.error("PERSON RE-ID INITIALIZATION FAILED")
+            logger.error(f"Exception during model initialization: {e}")
+            logger.error("Full traceback:")
+            import traceback
+            logger.error(traceback.format_exc())
+            logger.error("="*80)
             self.initialized = False
 
     def extract_embedding(self, image_path: str) -> np.ndarray:

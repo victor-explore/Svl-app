@@ -275,13 +275,27 @@ class DatabaseManager:
             session.close()
     
     def get_enriched_detection_history(self, limit: int = 50, offset: int = 0,
-                                     start_date: datetime = None, end_date: datetime = None) -> List[Dict[str, Any]]:
-        """Get detection history with camera information properly joined as dictionaries"""
+                                     start_date: datetime = None, end_date: datetime = None,
+                                     cameras_list: List[Dict] = None) -> List[Dict[str, Any]]:
+        """Get detection history with camera information properly joined as dictionaries
+
+        Args:
+            limit: Maximum number of detections to return
+            offset: Number of detections to skip
+            start_date: Filter detections after this date
+            end_date: Filter detections before this date
+            cameras_list: In-memory list of cameras (if None, will query database)
+        """
         session = self.get_session()
         try:
             # Step 1: Get all cameras with their basic info
-            cameras = session.query(Camera).all()
-            camera_lookup = {cam.id: {'name': cam.name, 'unique_id': cam.unique_id} for cam in cameras}
+            # Prefer in-memory cameras list if provided, otherwise query database
+            if cameras_list:
+                camera_lookup = {cam['id']: {'name': cam['name'], 'unique_id': cam.get('unique_id', f"camera_{cam['id']}")}
+                                for cam in cameras_list}
+            else:
+                cameras = session.query(Camera).all()
+                camera_lookup = {cam.id: {'name': cam.name, 'unique_id': cam.unique_id} for cam in cameras}
             
             # Step 2: Build detection query with filters
             query = session.query(Detection)

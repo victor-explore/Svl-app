@@ -88,7 +88,7 @@ DATABASE_CLEANUP_DAYS = 30                   # Days to keep detection records
 DATABASE_CLEANUP_INTERVAL_HOURS = 24         # Hours between cleanup runs
 
 # Storage Throttling Settings
-DETECTION_STORAGE_INTERVAL_SECONDS = 30      # Save images/DB every N seconds when person detected
+DETECTION_STORAGE_INTERVAL_SECONDS = 10      # Save images/DB every N seconds when person detected
 DETECTION_STORAGE_THROTTLING_ENABLED = True  # Enable time-based storage throttling
 
 # Global Detection Queue Settings

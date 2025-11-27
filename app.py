@@ -65,6 +65,26 @@ if PERSON_DETECTION_ENABLED:
 else:
     logger.info("Person detection is disabled in configuration")
 
+# Test Person Re-ID initialization at startup
+logger.info("========================================")
+logger.info("Testing Person Re-ID Model Initialization...")
+try:
+    from person_reid import get_reid_instance
+    reid_test = get_reid_instance()
+    if reid_test.initialized:
+        logger.info("✓ Person Re-ID model initialized successfully at startup!")
+        logger.info(f"  Device: {reid_test.device}")
+        logger.info(f"  Model: OSNet_x0_25")
+    else:
+        logger.error("✗ Person Re-ID model failed to initialize at startup")
+        logger.error("  Re-ID features will not be available")
+        logger.error("  Check the detailed error logs above for the cause")
+except Exception as e:
+    logger.error(f"✗ Exception during Re-ID startup test: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+logger.info("========================================")
+
 # Ensure cleanup on app shutdown
 # This should only be called when the entire application is terminating
 @atexit.register
@@ -197,11 +217,13 @@ def sensor_analytics():
     offset = (page - 1) * per_page
     
     # Get paginated detection records with camera info and date filters
+    # Pass in-memory cameras list so detection history can map camera IDs to names
     detections = db_manager.get_enriched_detection_history(
-        limit=per_page, 
+        limit=per_page,
         offset=offset,
         start_date=start_date,
-        end_date=end_date
+        end_date=end_date,
+        cameras_list=cameras
     )
     
     # Get total count for pagination with date filters
@@ -1236,34 +1258,77 @@ def serve_detection_image(image_path):
     """Serve detection images from storage"""
     try:
         from config import DETECTION_IMAGE_STORAGE_ENABLED
-        if not DETECTION_IMAGE_STORAGE_ENABLED:
-            return jsonify({
-                'success': False,
-                'error': 'Image storage is not enabled'
-            }), 400
-        
-        from detection_storage import image_storage
         from flask import send_file
-        
+        from io import BytesIO
+        from PIL import Image, ImageDraw, ImageFont
+
+        # Helper function to generate placeholder image
+        def generate_placeholder_image(message="Image Not Found"):
+            """Generate a placeholder image with error message"""
+            img = Image.new('RGB', (400, 300), color=(50, 50, 50))
+            draw = ImageDraw.Draw(img)
+
+            # Add text in center
+            try:
+                font = ImageFont.load_default()
+            except:
+                font = None
+
+            text_bbox = draw.textbbox((0, 0), message, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            text_height = text_bbox[3] - text_bbox[1]
+            position = ((400 - text_width) // 2, (300 - text_height) // 2)
+            draw.text(position, message, fill=(200, 200, 200), font=font)
+
+            # Save to BytesIO
+            img_io = BytesIO()
+            img.save(img_io, 'JPEG', quality=70)
+            img_io.seek(0)
+            return img_io
+
+        if not DETECTION_IMAGE_STORAGE_ENABLED:
+            logger.warning("Image storage is not enabled")
+            return send_file(
+                generate_placeholder_image("Image Storage Disabled"),
+                mimetype='image/jpeg'
+            )
+
+        from detection_storage import image_storage
+
         # Get full path to image
         full_path = image_storage.get_image_path(image_path)
-        
+
         # Check if file exists
         if not image_storage.image_exists(image_path):
-            return jsonify({
-                'success': False,
-                'error': 'Image not found'
-            }), 404
-        
+            logger.warning(f"Image not found: {image_path}")
+            return send_file(
+                generate_placeholder_image("Image Not Found"),
+                mimetype='image/jpeg'
+            )
+
         # Serve the image file
         return send_file(full_path, mimetype='image/jpeg')
-        
+
     except Exception as e:
         logger.error(f"Error serving detection image {image_path}: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        # Return placeholder image instead of JSON error
+        from io import BytesIO
+        from PIL import Image, ImageDraw, ImageFont
+
+        img = Image.new('RGB', (400, 300), color=(80, 0, 0))
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.load_default()
+        text = "Error Loading Image"
+        text_bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        position = ((400 - text_width) // 2, (300 - text_height) // 2)
+        draw.text(position, text, fill=(255, 200, 200), font=font)
+
+        img_io = BytesIO()
+        img.save(img_io, 'JPEG', quality=70)
+        img_io.seek(0)
+        return send_file(img_io, mimetype='image/jpeg')
 
 @app.route('/api/detections/stats', methods=['GET'])
 def get_detection_statistics():
@@ -1636,12 +1701,24 @@ def search_similar_detections(detection_id):
             logger.info(f"Found {len(all_detections)} detections from {detection_date}")
 
             # Initialize Re-ID model
+            logger.info(f"Getting Re-ID instance for detection {detection_id}...")
             reid_model = get_reid_instance()
+            logger.info(f"Re-ID instance obtained: initialized={reid_model.initialized}")
 
             if not reid_model.initialized:
+                logger.error("="*80)
+                logger.error("PERSON RE-ID MODEL NOT INITIALIZED")
+                logger.error(f"Detection ID: {detection_id}")
+                logger.error("This should not happen if startup test passed!")
+                logger.error("Possible causes:")
+                logger.error("  1. Model initialization failed silently during import")
+                logger.error("  2. TORCHREID_AVAILABLE was False at import time")
+                logger.error("  3. Exception occurred during PersonReID.__init__")
+                logger.error("Check the startup logs for 'Testing Person Re-ID Model Initialization'")
+                logger.error("="*80)
                 return jsonify({
                     'success': False,
-                    'error': 'Person Re-ID model is not available. Please install torchreid.'
+                    'error': 'Person Re-ID model failed to initialize. Check server logs for details. Install torchreid if needed: pip install torchreid'
                 }), 500
 
             # Find similar detections with optimized search
@@ -1765,9 +1842,10 @@ def search_similar_by_image():
         # Get Re-ID instance
         reid_model = get_reid_instance()
         if not reid_model or not reid_model.initialized:
+            logger.error("Person Re-ID model failed to initialize - check server logs for details")
             return jsonify({
                 'success': False,
-                'error': 'Person Re-ID model is not available. Please check the logs.'
+                'error': 'Person Re-ID model failed to initialize. Check server logs for details.'
             }), 500
 
         # Extract embedding from uploaded image
@@ -1872,6 +1950,42 @@ def search_similar_by_image():
             'error': str(e)
         }), 500
 
+
+# Global error handlers for API endpoints
+@app.errorhandler(404)
+def not_found_error(error):
+    """Handle 404 errors for API endpoints"""
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': 'Endpoint not found'
+        }), 404
+    # For non-API routes, return default 404
+    return render_template('404.html'), 404 if os.path.exists('templates/404.html') else ('Not Found', 404)
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors for API endpoints"""
+    logger.error(f"Internal server error: {error}")
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': 'Internal server error. Check server logs for details.'
+        }), 500
+    # For non-API routes, return default 500
+    return render_template('500.html'), 500 if os.path.exists('templates/500.html') else ('Internal Server Error', 500)
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    """Handle uncaught exceptions for API endpoints"""
+    logger.error(f"Uncaught exception: {error}", exc_info=True)
+    if request.path.startswith('/api/'):
+        return jsonify({
+            'success': False,
+            'error': f'Server error: {str(error)}'
+        }), 500
+    # For non-API routes, re-raise to use default handler
+    raise
 
 if __name__ == '__main__':
     # IMPORTANT: Debug mode controlled by config to prevent app shutdown when all cameras are removed

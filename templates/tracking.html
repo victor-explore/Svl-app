@@ -287,6 +287,15 @@ async function searchByDetectionId() {
     try {
         // Make API call to search for similar detections
         const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=${similarityThreshold}&top_k=${maxMatches}`);
+
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const textResponse = await response.text();
+            console.error('Non-JSON response received:', textResponse.substring(0, 200));
+            throw new Error('Server returned an invalid response. Please check server logs.');
+        }
+
         const data = await response.json();
 
         if (!response.ok) {
@@ -350,6 +359,15 @@ async function searchByImage() {
             method: 'POST',
             body: formData
         });
+
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const textResponse = await response.text();
+            console.error('Non-JSON response received:', textResponse.substring(0, 200));
+            throw new Error('Server returned an invalid response. Please check server logs.');
+        }
+
         const data = await response.json();
 
         if (!response.ok) {
@@ -507,6 +525,15 @@ async function searchByDetectionId() {
     try {
         // Make API call to search for similar detections with dynamic parameters
         const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=${similarityThreshold}&top_k=${maxMatches}`);
+
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const textResponse = await response.text();
+            console.error('Non-JSON response received:', textResponse.substring(0, 200));
+            throw new Error('Server returned an invalid response. Please check server logs.');
+        }
+
         const data = await response.json();
 
         if (!response.ok) {
