@@ -1785,6 +1785,51 @@ def search_similar_detections(detection_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/detections/<int:detection_id>', methods=['DELETE'])
+def delete_detection(detection_id):
+    """Delete a detection record and its associated image"""
+    try:
+        from config import DATABASE_ENABLED
+        if not DATABASE_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Database storage is not enabled'
+            }), 400
+
+        from database import db_manager
+        from detection_storage import image_storage
+
+        # Delete detection from database
+        result = db_manager.delete_detection(detection_id)
+
+        if not result['success']:
+            return jsonify(result), 404 if 'not found' in result.get('error', '') else 500
+
+        # Delete associated image file if it exists
+        image_path = result['detection'].get('image_path')
+        if image_path:
+            try:
+                image_deleted = image_storage.delete_image(image_path)
+                if image_deleted:
+                    logger.info(f"Deleted detection image: {image_path}")
+                else:
+                    logger.warning(f"Detection image not found or already deleted: {image_path}")
+            except Exception as img_error:
+                logger.error(f"Error deleting detection image {image_path}: {img_error}")
+                # Continue even if image deletion fails - database record is already deleted
+
+        return jsonify({
+            'success': True,
+            'message': f'Detection record {detection_id} deleted successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error deleting detection {detection_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/detections/search-by-image', methods=['POST'])
 def search_similar_by_image():
     """

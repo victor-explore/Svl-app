@@ -116,6 +116,7 @@
                             <th class="text-center">Image</th>
                             <th class="text-center">Detection ID</th>
                             <th class="text-center">Confidence Score</th>
+                            <th class="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -159,11 +160,20 @@
                                         <div class="badge badge-error">{{ "%.1f"|format(confidence_percent) }}%</div>
                                     {% endif %}
                                 </td>
+                                <td class="text-center">
+                                    <button class="btn btn-ghost btn-sm delete-detection-btn"
+                                            data-detection-id="{{ detection.id }}"
+                                            title="Delete detection">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-error">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                        </svg>
+                                    </button>
+                                </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="5" class="text-center py-8 text-base-content/50">
+                                <td colspan="6" class="text-center py-8 text-base-content/50">
                                     <div class="flex flex-col items-center gap-2">
                                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="w-12 h-12 stroke-current opacity-25"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
                                         <span>No detection records found</span>
@@ -620,16 +630,90 @@ document.addEventListener('DOMContentLoaded', function() {
             // Clear date inputs
             startDateInput.value = '';
             endDateInput.value = '';
-            
+
             // Remove date parameters from URL
             const currentUrl = new URL(window.location);
             currentUrl.searchParams.delete('start_date');
             currentUrl.searchParams.delete('end_date');
             currentUrl.searchParams.set('page', '1'); // Reset to first page
-            
+
             window.location.href = currentUrl.toString();
         });
     }
+});
+
+// Delete detection functionality
+document.addEventListener('DOMContentLoaded', function() {
+    // Add event listeners to all delete buttons
+    const deleteButtons = document.querySelectorAll('.delete-detection-btn');
+
+    deleteButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const detectionId = this.getAttribute('data-detection-id');
+
+            // Show confirmation dialog
+            if (!confirm(`Are you sure you want to delete detection record #${detectionId}?\n\nThis will permanently delete the detection record and its associated image.`)) {
+                return;
+            }
+
+            // Get the table row
+            const row = this.closest('tr');
+
+            // Disable the button and show loading state
+            this.disabled = true;
+            this.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+            // Send DELETE request
+            fetch(`/api/detections/${detectionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Add fade-out animation
+                    row.style.transition = 'opacity 0.3s';
+                    row.style.opacity = '0';
+
+                    // Remove row after animation
+                    setTimeout(() => {
+                        row.remove();
+
+                        // Check if table is now empty
+                        const tbody = document.querySelector('tbody');
+                        const remainingRows = tbody.querySelectorAll('tr').length;
+
+                        if (remainingRows === 0) {
+                            // Reload page to show "no records" message
+                            window.location.reload();
+                        }
+                    }, 300);
+
+                    // Show success message (optional - using browser alert)
+                    setTimeout(() => {
+                        alert('Detection record deleted successfully!');
+                    }, 350);
+                } else {
+                    // Show error message
+                    alert(`Error: ${data.error || 'Failed to delete detection'}`);
+
+                    // Re-enable button
+                    this.disabled = false;
+                    this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-error"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>';
+                }
+            })
+            .catch(error => {
+                console.error('Error deleting detection:', error);
+                alert('Network error: Failed to delete detection');
+
+                // Re-enable button
+                this.disabled = false;
+                this.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-error"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>';
+            });
+        });
+    });
 });
 </script>
 

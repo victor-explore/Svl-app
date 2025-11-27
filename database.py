@@ -643,22 +643,73 @@ class DatabaseManager:
         try:
             cutoff_date = get_ist_now().replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
             cutoff_date = cutoff_date - timedelta(days=days_to_keep)
-            
+
             old_detections = session.query(Detection).filter(
                 Detection.created_at < cutoff_date
             ).count()
-            
+
             if old_detections > 0:
                 session.query(Detection).filter(
                     Detection.created_at < cutoff_date
                 ).delete()
                 session.commit()
-                
+
                 logger.info(f"Cleaned up {old_detections} old detection records")
-            
+
         except Exception as e:
             session.rollback()
             logger.error(f"Error cleaning up old detections: {e}")
+        finally:
+            session.close()
+
+    def delete_detection(self, detection_id: int) -> Dict[str, Any]:
+        """
+        Delete a detection record from database
+
+        Args:
+            detection_id: ID of the detection to delete
+
+        Returns:
+            Dictionary with success status and detection data (including image_path for cleanup)
+        """
+        session = self.get_session()
+        try:
+            # Find the detection
+            detection = session.query(Detection).filter(Detection.id == detection_id).first()
+
+            if not detection:
+                return {
+                    'success': False,
+                    'error': f'Detection with ID {detection_id} not found'
+                }
+
+            # Store image path before deletion
+            image_path = detection.image_path
+            detection_info = {
+                'id': detection.id,
+                'person_id': detection.person_id,
+                'camera_id': detection.camera_id,
+                'image_path': image_path
+            }
+
+            # Delete the detection
+            session.delete(detection)
+            session.commit()
+
+            logger.info(f"Deleted detection record ID {detection_id}")
+
+            return {
+                'success': True,
+                'detection': detection_info
+            }
+
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error deleting detection {detection_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
         finally:
             session.close()
 
