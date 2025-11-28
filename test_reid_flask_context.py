@@ -8,7 +8,7 @@ import os
 
 # Fix Windows console encoding
 if sys.platform == 'win32':
-    os.system('chcp 65001 > nul')
+    os.system('chcp 65001 >nul 2>&1')
     sys.stdout.reconfigure(encoding='utf-8')
 
 print("=" * 80)

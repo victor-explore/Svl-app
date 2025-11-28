@@ -66,3 +66,6 @@ Thumbs.db
 
 # Detection images directory
 detection_images/
+
+# Windows null device file (created by incorrect redirect syntax)
+nul

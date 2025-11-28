@@ -9,7 +9,7 @@ import logging
 
 # Fix Windows console encoding for UTF-8 characters
 if sys.platform == 'win32':
-    os.system('chcp 65001 > nul')
+    os.system('chcp 65001 >nul 2>&1')
     sys.stdout.reconfigure(encoding='utf-8')
 
 # Set up detailed logging
