@@ -285,6 +285,9 @@ async function searchByDetectionId() {
     }
 
     try {
+        // Pause detection for better performance during Re-ID search
+        await pauseDetection('re-id_search', 20);
+
         // Make API call to search for similar detections
         const response = await fetch(`/api/detections/search-similar/${detectionId}?threshold=${similarityThreshold}&top_k=${maxMatches}`);
 
@@ -354,6 +357,9 @@ async function searchByImage() {
     }
 
     try {
+        // Pause detection for better performance during Re-ID search
+        await pauseDetection('re-id_image_search', 20);
+
         // Make API call
         const response = await fetch('/api/detections/search-by-image', {
             method: 'POST',
@@ -764,6 +770,58 @@ document.getElementById('detection-id-search').addEventListener('keypress', func
     if (e.key === 'Enter') {
         performSearch();
     }
+});
+
+// Detection pause/resume helpers for improved UX
+async function pauseDetection(reason = 'user_action', duration_seconds = 15) {
+    try {
+        const response = await fetch('/api/detection/pause', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                reason: reason,
+                duration_seconds: duration_seconds
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Detection paused: ${reason} for ${duration_seconds}s`);
+            return data;
+        }
+    } catch (error) {
+        console.warn('Failed to pause detection:', error);
+    }
+}
+
+async function resumeDetection() {
+    try {
+        const response = await fetch('/api/detection/resume', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Detection resumed');
+            return data;
+        }
+    } catch (error) {
+        console.warn('Failed to resume detection:', error);
+    }
+}
+
+// Pause detection on page load, resume on page unload
+window.addEventListener('load', () => {
+    pauseDetection('page_navigation_tracking', 10);
+});
+
+window.addEventListener('beforeunload', () => {
+    resumeDetection();
 });
 </script>
 

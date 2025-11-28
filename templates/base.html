@@ -12,12 +12,13 @@
     <!-- Horizontal Navbar -->
     <div class="navbar bg-base-100 border-b border-base-300 shadow-md">
         <div class="flex-1">
-            <a class="btn btn-ghost">
-                <img src="{{ url_for('static', filename='Logo.png') }}" alt="Drishthi" class="h-8">
+            <a class="btn btn-ghost normal-case text-2xl font-bold text-base-content">
+                AI Based Surveillance System
             </a>
         </div>
         <div class="flex-none">
             <ul class="menu menu-horizontal px-1">
+                <li><a href="/">Home</a></li>
                 <li><a href="/feed">Feed</a></li>
                 <li><a href="/map">Map</a></li>
                 <li><a href="/sensor-analytics">Analysis</a></li>
@@ -93,6 +94,27 @@
                                             <label for="password" class="label"><span class="label-text">Password</span></label>
                                             <input type="password" class="input input-bordered w-full" id="password" name="password" placeholder="••••••••">
                                         </div>
+                                    </div>
+
+                                    <!-- Save Camera Checkbox -->
+                                    <div class="form-control mt-2">
+                                        <label class="label cursor-pointer justify-start">
+                                            <input type="checkbox" class="checkbox checkbox-sm mr-2" id="saveCamera" name="saveCamera">
+                                            <span class="label-text">Save this camera for future use</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Divider -->
+                                    <div class="divider my-2">OR</div>
+
+                                    <!-- Saved Cameras Dropdown -->
+                                    <div class="form-control">
+                                        <label for="savedCameraSelect" class="label">
+                                            <span class="label-text">Select saved camera:</span>
+                                        </label>
+                                        <select class="select select-bordered w-full" id="savedCameraSelect" name="savedCameraSelect">
+                                            <option value="">Select Saved Camera...</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -170,6 +192,35 @@
         const usbAccordion = document.getElementById('usbAccordion');
         const deviceIndexSelect = document.getElementById('deviceIndex');
         const usbDeviceInfo = document.getElementById('usbDeviceInfo');
+        const savedCameraSelect = document.getElementById('savedCameraSelect');
+        const saveCameraCheckbox = document.getElementById('saveCamera');
+
+        // Load saved cameras on page load
+        loadSavedCameras();
+
+        // Handle saved camera selection
+        savedCameraSelect.addEventListener('change', function() {
+            const selectedId = this.value;
+            if (!selectedId) return;
+
+            // Find the selected camera data
+            const selectedOption = this.options[this.selectedIndex];
+            const cameraData = JSON.parse(selectedOption.dataset.camera || '{}');
+
+            // Populate RTSP fields
+            document.getElementById('rtspUrl').value = cameraData.rtsp_url || '';
+            document.getElementById('username').value = cameraData.username || '';
+            document.getElementById('password').value = cameraData.password || '';
+            document.getElementById('cameraName').value = cameraData.name || '';
+            document.getElementById('uniqueId').value = cameraData.unique_id || '';
+
+            // Populate location fields if available
+            document.getElementById('latitude').value = cameraData.latitude || '';
+            document.getElementById('longitude').value = cameraData.longitude || '';
+
+            // Uncheck save checkbox since this is already saved
+            saveCameraCheckbox.checked = false;
+        });
 
         // Handle accordion radio button changes
         function updateFieldRequirements() {
@@ -410,6 +461,20 @@
             }
 
             try {
+                // If save camera checkbox is checked and it's an RTSP camera, save the configuration
+                if (cameraType === 'rtsp' && saveCameraCheckbox.checked) {
+                    const saveName = cameraData.name || cameraData.unique_id;
+                    await saveCameraConfiguration(
+                        saveName,
+                        cameraData.rtsp_url,
+                        cameraData.username,
+                        cameraData.password,
+                        cameraData.latitude,
+                        cameraData.longitude,
+                        cameraData.unique_id
+                    );
+                }
+
                 const response = await fetch('/api/cameras', {
                     method: 'POST',
                     headers: {
@@ -419,14 +484,14 @@
                 });
 
                 const result = await response.json();
-                
+
                 if (result.success) {
                     // Clear form and close modal
                     addCameraForm.reset();
                     connectionStatus.classList.add('hidden');
-                    
+
                     document.getElementById('addCameraModal').close();
-                    
+
                     // Refresh page to show new camera (visual feedback is sufficient)
                     setTimeout(() => location.reload(), 500);
                 } else {
@@ -437,6 +502,68 @@
             }
         });
 
+        async function loadSavedCameras() {
+            try {
+                const response = await fetch('/api/saved-cameras');
+                const result = await response.json();
+
+                if (result.success && result.cameras.length > 0) {
+                    // Clear existing options except the first one
+                    savedCameraSelect.innerHTML = '<option value="">Select Saved Camera...</option>';
+
+                    // Add saved cameras to dropdown
+                    result.cameras.forEach(camera => {
+                        const option = document.createElement('option');
+                        option.value = camera.id;
+                        option.textContent = camera.name;
+                        option.dataset.camera = JSON.stringify(camera);
+                        savedCameraSelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading saved cameras:', error);
+            }
+        }
+
+        async function saveCameraConfiguration(name, rtspUrl, username, password, latitude, longitude, uniqueId) {
+            try {
+                const saveData = {
+                    name: name,
+                    unique_id: uniqueId,
+                    rtsp_url: rtspUrl,
+                    username: username,
+                    password: password,
+                    latitude: latitude,
+                    longitude: longitude
+                };
+
+                console.log('Saving camera configuration:', saveData);
+
+                const response = await fetch('/api/saved-cameras', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(saveData)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('✓ Camera configuration saved successfully (with location)');
+                    // Reload saved cameras to update dropdown
+                    await loadSavedCameras();
+                } else {
+                    console.error('✗ Failed to save camera configuration:', result.error);
+                    // Show error to user so they know what went wrong
+                    showNotification(`Could not save camera: ${result.error}`, 'warning');
+                }
+            } catch (error) {
+                console.error('✗ Error saving camera configuration:', error);
+                showNotification(`Error saving camera: ${error.message}`, 'warning');
+            }
+        }
+
         function showNotification(message, type) {
             // Map Bootstrap types to DaisyUI types
             const typeMap = {
@@ -445,7 +572,7 @@
                 'warning': 'alert-warning',
                 'info': 'alert-info'
             };
-            
+
             const alertDiv = document.createElement('div');
             alertDiv.className = `alert ${typeMap[type] || 'alert-info'} fixed top-4 left-1/2 transform -translate-x-1/2 z-50 max-w-md shadow-lg`;
             alertDiv.innerHTML = `
@@ -454,9 +581,9 @@
                     <button type="button" class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.parentElement.remove()">✕</button>
                 </div>
             `;
-            
+
             document.body.appendChild(alertDiv);
-            
+
             // Auto remove after 4 seconds
             setTimeout(() => {
                 if (alertDiv.parentNode) {
@@ -483,6 +610,15 @@
 
                 // Clear USB device info if it was shown
                 usbDeviceInfo.classList.add('hidden');
+
+                // Reset saved camera dropdown
+                savedCameraSelect.value = '';
+
+                // Uncheck save camera checkbox
+                saveCameraCheckbox.checked = false;
+
+                // Reload saved cameras to get latest list
+                loadSavedCameras();
 
                 // Pre-scan USB devices in background (no loading indicator)
                 // This makes the USB section feel instant when opened

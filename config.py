@@ -98,6 +98,12 @@ DETECTION_QUEUE_TIMEOUT = 1.0                # Timeout for queue operations in s
 # Detection Result Validation Settings
 DETECTION_RESULT_MAX_AGE_SECONDS = 5.0       # Maximum age for detection results to be applied to frames
 
+# Detection Pause Settings - Improve UX During User Interactions
+DETECTION_PAUSE_ON_USER_ACTION = True        # Enable automatic pause during user interactions
+DETECTION_AUTO_RESUME_SECONDS = 15           # Auto-resume detection after N seconds of pause
+DETECTION_PAUSE_MIN_DURATION = 2             # Minimum pause duration in seconds
+DETECTION_PAUSE_DRAIN_QUEUE = True           # Drain frame queue when paused to prevent stale frames
+
 # Map Configuration Settings
 MAP_ENABLED = True                           # Enable offline map functionality
 MAP_TILES_PATH = "static/map_tiles"         # Path to offline map tiles

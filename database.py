@@ -38,31 +38,31 @@ class Camera(Base):
 class Detection(Base):
     """Person detection records table"""
     __tablename__ = 'detections'
-    
+
     id = Column(Integer, primary_key=True, index=True)
     person_id = Column(String(50), index=True)  # UUID for unique person identification
     camera_id = Column(Integer, ForeignKey('cameras.id'), nullable=False)
-    
+
     # Detection details
     confidence = Column(Float, nullable=False)
     bbox_x1 = Column(Float, nullable=False)
     bbox_y1 = Column(Float, nullable=False)
     bbox_x2 = Column(Float, nullable=False)
     bbox_y2 = Column(Float, nullable=False)
-    
+
     # File paths
     image_path = Column(Text, nullable=False)  # Path to detection image
-    
+
     # Timestamps
     created_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
-    
+
     # Additional metadata
     frame_width = Column(Integer)
     frame_height = Column(Integer)
-    
+
     # Relationship
     camera = relationship("Camera", back_populates="detections")
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert detection to dictionary for API responses"""
         return {
@@ -77,6 +77,36 @@ class Detection(Base):
             'detected_at': self.created_at.isoformat(),
             'created_at': self.created_at.isoformat(),
             'frame_dimensions': [self.frame_width, self.frame_height] if self.frame_width else None
+        }
+
+class SavedCamera(Base):
+    """Saved camera configurations for quick setup"""
+    __tablename__ = 'saved_cameras'
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)  # Display name for saved config
+    unique_id = Column(String(100), nullable=True)  # Unique identifier for camera
+    rtsp_url = Column(Text, nullable=False)
+    username = Column(String(100), nullable=True)
+    password = Column(String(100), nullable=True)
+    latitude = Column(Float, nullable=True)  # GPS latitude for map display
+    longitude = Column(Float, nullable=True)  # GPS longitude for map display
+    created_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None))
+    updated_at = Column(DateTime, default=lambda: get_ist_now().replace(tzinfo=None), onupdate=lambda: get_ist_now().replace(tzinfo=None))
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert saved camera to dictionary for API responses"""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'unique_id': self.unique_id or '',
+            'rtsp_url': self.rtsp_url,
+            'username': self.username or '',
+            'password': self.password or '',
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
         }
 
 class DatabaseManager:
@@ -706,6 +736,91 @@ class DatabaseManager:
         except Exception as e:
             session.rollback()
             logger.error(f"Error deleting detection {detection_id}: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        finally:
+            session.close()
+
+    def get_saved_cameras(self) -> List[Dict[str, Any]]:
+        """Get all saved camera configurations"""
+        session = self.get_session()
+        try:
+            saved_cameras = session.query(SavedCamera).order_by(SavedCamera.name).all()
+            return [camera.to_dict() for camera in saved_cameras]
+        except Exception as e:
+            logger.error(f"Error getting saved cameras: {e}")
+            return []
+        finally:
+            session.close()
+
+    def save_camera_config(self, name: str, rtsp_url: str, username: str = None, password: str = None,
+                          latitude: float = None, longitude: float = None, unique_id: str = None) -> Dict[str, Any]:
+        """Save a camera configuration for future use"""
+        session = self.get_session()
+        try:
+            # Check if camera with same RTSP URL already exists
+            existing = session.query(SavedCamera).filter(SavedCamera.rtsp_url == rtsp_url).first()
+            if existing:
+                return {
+                    'success': False,
+                    'error': f'Camera with this RTSP URL already saved as "{existing.name}"'
+                }
+
+            saved_camera = SavedCamera(
+                name=name,
+                unique_id=unique_id,
+                rtsp_url=rtsp_url,
+                username=username,
+                password=password,
+                latitude=latitude,
+                longitude=longitude
+            )
+            session.add(saved_camera)
+            session.commit()
+
+            # Get the saved camera data
+            camera_dict = saved_camera.to_dict()
+
+            logger.info(f"Saved camera configuration: {name} [ID: {unique_id}] (lat: {latitude}, lon: {longitude})")
+            return {
+                'success': True,
+                'camera': camera_dict
+            }
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error saving camera configuration: {e}")
+            return {
+                'success': False,
+                'error': str(e)
+            }
+        finally:
+            session.close()
+
+    def delete_saved_camera(self, camera_id: int) -> Dict[str, Any]:
+        """Delete a saved camera configuration"""
+        session = self.get_session()
+        try:
+            saved_camera = session.query(SavedCamera).filter(SavedCamera.id == camera_id).first()
+            if not saved_camera:
+                return {
+                    'success': False,
+                    'error': f'Saved camera with ID {camera_id} not found'
+                }
+
+            camera_name = saved_camera.name
+            session.delete(saved_camera)
+            session.commit()
+
+            logger.info(f"Deleted saved camera configuration: {camera_name}")
+            return {
+                'success': True,
+                'message': f'Saved camera "{camera_name}" deleted successfully'
+            }
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error deleting saved camera {camera_id}: {e}")
             return {
                 'success': False,
                 'error': str(e)

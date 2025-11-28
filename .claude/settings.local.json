@@ -3,7 +3,8 @@
     "allow": [
       "Bash(find:*)",
       "Bash(python test_reid_flask_context.py)",
-      "Bash(\"venv\\Scripts\\python.exe\" -m pip install torchreid==0.2.5 gdown==5.2.0 tensorboard==2.20.0 beautifulsoup4==4.14.0 tqdm==4.67.1)"
+      "Bash(\"venv\\Scripts\\python.exe\" -m pip install torchreid==0.2.5 gdown==5.2.0 tensorboard==2.20.0 beautifulsoup4==4.14.0 tqdm==4.67.1)",
+      "Bash(python test:*)"
     ],
     "deny": []
   }

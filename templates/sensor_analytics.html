@@ -511,23 +511,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Chart control handlers
-    updateChartBtn.addEventListener('click', function() {
+    updateChartBtn.addEventListener('click', async function() {
         const startDate = chartStartDate.value;
         const endDate = chartEndDate.value;
-        
+
         if (startDate && endDate) {
             // Validate date range
             if (startDate > endDate) {
                 alert('Start date cannot be after end date');
                 return;
             }
-            
+
+            // Pause detection before updating charts for better performance
+            await pauseDetection('chart_update', 8);
+
             // Clear auto-refresh when using custom date range
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
             }
-            
+
             fetchChartData(startDate, endDate);
         } else if (startDate || endDate) {
             alert('Please select both start and end dates');
@@ -593,34 +596,37 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearButton = document.getElementById('clearFilter');
     
     if (applyButton) {
-        applyButton.addEventListener('click', function() {
+        applyButton.addEventListener('click', async function() {
             const startDate = startDateInput.value;
             const endDate = endDateInput.value;
-            
+
             // Basic validation
             if (startDate && endDate && startDate > endDate) {
                 alert('Start date cannot be after end date');
                 return;
             }
-            
+
+            // Pause detection before applying filter for better UX
+            await pauseDetection('filter_apply', 8);
+
             // Update URL with date filters
             const currentUrl = new URL(window.location);
-            
+
             if (startDate) {
                 currentUrl.searchParams.set('start_date', startDate);
             } else {
                 currentUrl.searchParams.delete('start_date');
             }
-            
+
             if (endDate) {
                 currentUrl.searchParams.set('end_date', endDate);
             } else {
                 currentUrl.searchParams.delete('end_date');
             }
-            
+
             // Reset to first page when applying filter
             currentUrl.searchParams.set('page', '1');
-            
+
             window.location.href = currentUrl.toString();
         });
     }
@@ -714,6 +720,58 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+});
+
+// Detection pause/resume helpers for improved UX
+async function pauseDetection(reason = 'user_action', duration_seconds = 15) {
+    try {
+        const response = await fetch('/api/detection/pause', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                reason: reason,
+                duration_seconds: duration_seconds
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`Detection paused: ${reason} for ${duration_seconds}s`);
+            return data;
+        }
+    } catch (error) {
+        console.warn('Failed to pause detection:', error);
+    }
+}
+
+async function resumeDetection() {
+    try {
+        const response = await fetch('/api/detection/resume', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Detection resumed');
+            return data;
+        }
+    } catch (error) {
+        console.warn('Failed to resume detection:', error);
+    }
+}
+
+// Pause detection on page load for better UX
+window.addEventListener('load', () => {
+    pauseDetection('page_navigation_analytics', 10);
+});
+
+window.addEventListener('beforeunload', () => {
+    resumeDetection();
 });
 </script>
 

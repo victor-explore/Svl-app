@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drishthi - Advanced CCTV Surveillance System</title>
+    <link href="{{ url_for('static', filename='css/tailwind.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/daisyui.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/custom.css') }}" rel="stylesheet">
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Horizontal Navbar -->
+    <div class="navbar bg-base-100 border-b border-base-300 shadow-md">
+        <div class="flex-1">
+            <a class="btn btn-ghost normal-case text-2xl font-bold text-base-content">
+                AI Based Surveillance System
+            </a>
+        </div>
+        <div class="flex-none">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="/">Home</a></li>
+                <li><a href="/feed">Feed</a></li>
+                <li><a href="/map">Map</a></li>
+                <li><a href="/sensor-analytics">Analysis</a></li>
+                <li><a href="/tracking">Tracking</a></li>
+                <li><a href="/settings">Settings</a></li>
+            </ul>
+        </div>
+    </div>
+
+<!-- Hero Section - Full Bleed -->
+<div class="hero min-h-screen" style="background-image: url('{{ url_for('static', filename='background-image.png') }}'); background-size: cover; background-position: center;">
+    <div class="hero-overlay bg-opacity-50"></div>
+    <div class="hero-content text-center text-neutral-content py-16">
+        <div class="max-w-5xl">
+            <!-- Hero Text -->
+            <h1 class="text-5xl md:text-6xl font-bold mb-6 text-white drop-shadow-2xl">AI Based Surveillance System</h1>
+
+            <!-- Subtitle -->
+            <p class="text-xl md:text-2xl mb-8 text-white drop-shadow-lg font-light leading-relaxed max-w-4xl mx-auto">
+                Real-time AI surveillance tracking system for comprehensive monitoring, detection, analysis, and geographic mapping across multiple locations
+            </p>
+
+            <!-- Military Features Box -->
+            <div class="bg-black/40 backdrop-blur-sm rounded-lg p-8 mb-8 max-w-4xl mx-auto">
+                <ul class="text-left text-white/90 space-y-3 text-base md:text-lg">
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>Unified Command & Control</strong> - Connect and manage all surveillance devices with real-time operational status monitoring powered by intelligent automation</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>Autonomous AI Surveillance</strong> - Deep learning algorithms continuously analyze video streams, automatically saving critical detections and eliminating manual surveillance fatigue</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>Intelligent Detection Archive</strong> - Browse AI-generated detection summaries with smart filters or examine individual events with metadata and timestamps</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>AI Based Target Tracking</strong> - Track objects of interest across multiple camera locations and time periods using deep learning re-identification model</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>Geographic Intelligence Dashboard</strong> - Visualize all cameras and AI detection analytics on an interactive map for complete situational awareness</span>
+                    </li>
+                    <li class="flex items-start">
+                        <span class="mr-3 flex-shrink-0">•</span>
+                        <span><strong>Built from Ground Zero</strong> - Completely built from scratch in-house with full source code access for security audits, tactical modifications, and operational independence</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- CTA Button -->
+            <div>
+                <a href="/feed" class="btn btn-lg bg-white text-neutral hover:bg-gray-100 border-none shadow-xl">Get Started →</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer class="footer footer-center p-4 bg-base-200 text-base-content border-t border-base-300 mt-auto">
+    <div>
+        <p>Developed by AI Lab 1 CGSR</p>
+    </div>
+</footer>
+
+</body>
+</html>

@@ -15,7 +15,9 @@ from datetime import datetime
 from config import (PERSON_DETECTION_RESIZE_ENABLED, PERSON_DETECTION_RESIZE_WIDTH,
                    PERSON_DETECTION_RESIZE_HEIGHT, PERSON_DETECTION_MAINTAIN_ASPECT,
                    DATABASE_ENABLED, DETECTION_IMAGE_STORAGE_ENABLED,
-                   DETECTION_STORAGE_THROTTLING_ENABLED, DETECTION_STORAGE_INTERVAL_SECONDS)
+                   DETECTION_STORAGE_THROTTLING_ENABLED, DETECTION_STORAGE_INTERVAL_SECONDS,
+                   DETECTION_PAUSE_ON_USER_ACTION, DETECTION_AUTO_RESUME_SECONDS,
+                   DETECTION_PAUSE_MIN_DURATION, DETECTION_PAUSE_DRAIN_QUEUE)
 
 # Import database and image storage only if enabled
 if DATABASE_ENABLED:
@@ -291,8 +293,16 @@ class DetectionService(threading.Thread):
         # Storage throttling per camera
         self.camera_last_storage_time = {}  # Dict[camera_id, timestamp]
 
+        # Pause mechanism for UX improvements
+        self.is_paused = False
+        self.pause_until = None  # Timestamp when auto-resume should happen
+        self.pause_reason = None  # String describing why detection was paused
+        self.pause_lock = threading.Lock()
+
         logger.info(f"DetectionService initialized with model: {model_path}")
         logger.info("Simplified architecture: Direct storage, no output queues")
+        if DETECTION_PAUSE_ON_USER_ACTION:
+            logger.info(f"Detection pause enabled: auto-resume after {DETECTION_AUTO_RESUME_SECONDS}s")
 
     def run(self):
         """Main detection loop - runs in separate thread"""
@@ -325,6 +335,26 @@ class DetectionService(threading.Thread):
                 # Check for shutdown
                 if self.shutdown_event.is_set():
                     break
+
+                # Check if detection is paused
+                with self.pause_lock:
+                    if self.is_paused:
+                        # Check if auto-resume time has passed
+                        if self.pause_until and time.time() >= self.pause_until:
+                            logger.info(f"Auto-resuming detection after pause (reason: {self.pause_reason})")
+                            self.is_paused = False
+                            self.pause_until = None
+                            self.pause_reason = None
+                        else:
+                            # Still paused - drain queue if configured
+                            if DETECTION_PAUSE_DRAIN_QUEUE:
+                                try:
+                                    # Discard frames while paused to prevent stale frame buildup
+                                    self.input_queue.get_nowait()
+                                except queue.Empty:
+                                    pass
+                            time.sleep(0.1)
+                            continue
 
                 # Get frame from queue with timeout
                 try:
@@ -500,12 +530,97 @@ class DetectionService(threading.Thread):
         else:
             logger.debug(f"No storage state to clean for camera {camera_id}")
 
+    def pause_detection(self, reason: str = "user_action", duration_seconds: Optional[int] = None) -> Dict:
+        """
+        Pause detection processing to improve UX during user interactions
+
+        Args:
+            reason: Reason for pausing (e.g., "re-id_search", "page_navigation", "filter_apply")
+            duration_seconds: How long to pause (None = use default auto-resume time)
+
+        Returns:
+            Dict with pause status and info
+        """
+        if not DETECTION_PAUSE_ON_USER_ACTION:
+            return {
+                'paused': False,
+                'reason': 'pause_disabled_in_config'
+            }
+
+        with self.pause_lock:
+            # Apply minimum pause duration
+            if duration_seconds is None:
+                duration_seconds = DETECTION_AUTO_RESUME_SECONDS
+            else:
+                duration_seconds = max(duration_seconds, DETECTION_PAUSE_MIN_DURATION)
+
+            self.is_paused = True
+            self.pause_until = time.time() + duration_seconds
+            self.pause_reason = reason
+
+            logger.info(f"Detection paused for {duration_seconds}s (reason: {reason})")
+
+            return {
+                'paused': True,
+                'reason': reason,
+                'pause_until': self.pause_until,
+                'duration_seconds': duration_seconds
+            }
+
+    def resume_detection(self) -> Dict:
+        """
+        Manually resume detection processing
+
+        Returns:
+            Dict with resume status
+        """
+        with self.pause_lock:
+            was_paused = self.is_paused
+            previous_reason = self.pause_reason
+
+            self.is_paused = False
+            self.pause_until = None
+            self.pause_reason = None
+
+            if was_paused:
+                logger.info(f"Detection manually resumed (was paused for: {previous_reason})")
+
+            return {
+                'resumed': was_paused,
+                'was_paused_for': previous_reason
+            }
+
+    def get_pause_status(self) -> Dict:
+        """
+        Get current pause status
+
+        Returns:
+            Dict with pause state information
+        """
+        with self.pause_lock:
+            if self.is_paused and self.pause_until:
+                time_remaining = max(0, self.pause_until - time.time())
+            else:
+                time_remaining = 0
+
+            return {
+                'is_paused': self.is_paused,
+                'reason': self.pause_reason,
+                'time_remaining_seconds': time_remaining,
+                'pause_until': self.pause_until
+            }
+
     def get_stats(self) -> Dict:
         """Get detection service statistics"""
+        pause_status = self.get_pause_status()
+
         stats = {
             'is_running': self.is_running,
             'model_initialized': self.detector is not None and self.detector.is_initialized,
-            'input_queue_size': self.input_queue.qsize()
+            'input_queue_size': self.input_queue.qsize(),
+            'is_paused': pause_status['is_paused'],
+            'pause_reason': pause_status['reason'],
+            'pause_time_remaining': pause_status['time_remaining_seconds']
         }
 
         return stats

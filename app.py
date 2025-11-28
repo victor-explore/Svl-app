@@ -146,19 +146,7 @@ initialize_cameras()
 
 @app.route('/')
 def home():
-    # Update camera statuses from camera manager
-    for camera in cameras:
-        camera_status = camera_manager.get_camera_status(camera['id'])
-        if camera_status:
-            camera['status'] = camera_status['status']
-    
-    # Count cameras by status
-    stats = {
-        'online': len([c for c in cameras if c['status'] == 'online']),
-        'offline': len([c for c in cameras if c['status'] == 'offline']),
-        'connecting': len([c for c in cameras if c['status'] == 'connecting'])
-    }
-    return render_template('feed.html', cameras=cameras, stats=stats)
+    return render_template('home.html')
 
 @app.route('/feed')
 def feed():
@@ -998,13 +986,13 @@ def update_camera_status(camera_id):
     try:
         data = request.get_json()
         new_status = data.get('status')
-        
+
         if new_status not in ['online', 'offline', 'connecting']:
             return jsonify({
                 'success': False,
                 'error': 'Invalid status. Must be one of: online, offline, connecting'
             }), 400
-        
+
         # Find and update camera
         camera = next((c for c in cameras if c['id'] == camera_id), None)
         if not camera:
@@ -1012,16 +1000,99 @@ def update_camera_status(camera_id):
                 'success': False,
                 'error': 'Camera not found'
             }), 404
-        
+
         camera['status'] = new_status
-        
+
         return jsonify({
             'success': True,
             'camera': camera,
             'message': f'Camera status updated to {new_status}'
         })
-        
+
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/saved-cameras', methods=['GET'])
+def get_saved_cameras():
+    """Get all saved camera configurations"""
+    try:
+        from database import db_manager
+        saved_cameras = db_manager.get_saved_cameras()
+        return jsonify({
+            'success': True,
+            'cameras': saved_cameras,
+            'count': len(saved_cameras)
+        })
+    except Exception as e:
+        logger.error(f"Error getting saved cameras: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/saved-cameras', methods=['POST'])
+def save_camera_config():
+    """Save a camera configuration for future use"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields - name can be empty, RTSP URL cannot
+        if not data.get('rtsp_url'):
+            return jsonify({
+                'success': False,
+                'error': 'RTSP URL is required'
+            }), 400
+
+        # Use provided name, or generate one from RTSP URL if empty
+        name = data.get('name', '').strip()
+        if not name:
+            # Extract a name from RTSP URL (e.g., "rtsp://192.168.1.100/stream" -> "192.168.1.100")
+            import re
+            url_match = re.search(r'rtsp://([^/:]+)', data['rtsp_url'])
+            name = url_match.group(1) if url_match else 'Saved Camera'
+
+        from database import db_manager
+        result = db_manager.save_camera_config(
+            name=name,
+            rtsp_url=data['rtsp_url'],
+            username=data.get('username', ''),
+            password=data.get('password', ''),
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude'),
+            unique_id=data.get('unique_id', '')
+        )
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+
+    except Exception as e:
+        logger.error(f"Error saving camera configuration: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/saved-cameras/<int:camera_id>', methods=['DELETE'])
+def delete_saved_camera(camera_id):
+    """Delete a saved camera configuration"""
+    try:
+        from database import db_manager
+        result = db_manager.delete_saved_camera(camera_id)
+
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 404 if 'not found' in result.get('error', '') else 500
+
+    except Exception as e:
+        logger.error(f"Error deleting saved camera: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1995,6 +2066,114 @@ def search_similar_by_image():
             'error': str(e)
         }), 500
 
+@app.route('/api/detection/pause', methods=['POST'])
+def pause_detection():
+    """
+    Pause detection processing to improve UX during user interactions
+    Request body (optional):
+    - reason: String describing why detection is paused
+    - duration_seconds: How long to pause (None = use default)
+    """
+    try:
+        if not PERSON_DETECTION_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Person detection is not enabled'
+            }), 400
+
+        detection_service = person_detector.get_detection_service()
+        if not detection_service:
+            return jsonify({
+                'success': False,
+                'error': 'Detection service not available'
+            }), 500
+
+        # Get request parameters
+        data = request.get_json() or {}
+        reason = data.get('reason', 'user_action')
+        duration_seconds = data.get('duration_seconds')
+
+        # Pause detection
+        result = detection_service.pause_detection(reason=reason, duration_seconds=duration_seconds)
+
+        return jsonify({
+            'success': True,
+            'pause_status': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error pausing detection: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detection/resume', methods=['POST'])
+def resume_detection():
+    """Manually resume detection processing"""
+    try:
+        if not PERSON_DETECTION_ENABLED:
+            return jsonify({
+                'success': False,
+                'error': 'Person detection is not enabled'
+            }), 400
+
+        detection_service = person_detector.get_detection_service()
+        if not detection_service:
+            return jsonify({
+                'success': False,
+                'error': 'Detection service not available'
+            }), 500
+
+        # Resume detection
+        result = detection_service.resume_detection()
+
+        return jsonify({
+            'success': True,
+            'resume_status': result
+        })
+
+    except Exception as e:
+        logger.error(f"Error resuming detection: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/detection/status', methods=['GET'])
+def get_detection_status():
+    """Get current detection pause status"""
+    try:
+        if not PERSON_DETECTION_ENABLED:
+            return jsonify({
+                'success': True,
+                'detection_enabled': False,
+                'is_paused': False
+            })
+
+        detection_service = person_detector.get_detection_service()
+        if not detection_service:
+            return jsonify({
+                'success': False,
+                'error': 'Detection service not available'
+            }), 500
+
+        # Get pause status
+        pause_status = detection_service.get_pause_status()
+
+        return jsonify({
+            'success': True,
+            'detection_enabled': True,
+            'pause_status': pause_status
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting detection status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 # Global error handlers for API endpoints
 @app.errorhandler(404)
@@ -2006,7 +2185,10 @@ def not_found_error(error):
             'error': 'Endpoint not found'
         }), 404
     # For non-API routes, return default 404
-    return render_template('404.html'), 404 if os.path.exists('templates/404.html') else ('Not Found', 404)
+    if os.path.exists('templates/404.html'):
+        return render_template('404.html'), 404
+    else:
+        return ('Not Found', 404)
 
 @app.errorhandler(500)
 def internal_error(error):
@@ -2018,7 +2200,10 @@ def internal_error(error):
             'error': 'Internal server error. Check server logs for details.'
         }), 500
     # For non-API routes, return default 500
-    return render_template('500.html'), 500 if os.path.exists('templates/500.html') else ('Internal Server Error', 500)
+    if os.path.exists('templates/500.html'):
+        return render_template('500.html'), 500
+    else:
+        return ('Internal Server Error', 500)
 
 @app.errorhandler(Exception)
 def handle_exception(error):
